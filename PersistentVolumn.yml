@@ -1,0 +1,68 @@
+apiVersion: v1                #版本，固定v1
+kind: PersistentVolume        #持久卷
+metadata:                     #元数据
+  name: mysql-master-pv       #持久卷名称
+  namespace: opencloud        #命名空间
+spec:                                               #规格定义
+  capacity:                                         #描述持久卷的资源和容量
+    storage: 1Gi                                    #存储容量
+  accessModes:                                      #卷可以用资源提供者所支持的任何方式挂载到宿主系统上。 如下表所示，提供者（驱动）的能力不同，每个 PV 卷的访问模式都会设置为对应卷所支持的模式值。 例如，NFS 可以支持多个读写客户，但是某个特定的 NFS PV 卷可能在服务器上以只读的方式导出。 每个 PV 卷都会获得自身的访问模式集合，描述的是特定 PV 卷的能力
+#    - ReadWriteOnce                                 #卷可以被一个Node以读写方式挂载。 ReadWriteOnce 访问模式也允许运行在同一节点上的多个 Pod 访问卷
+    - ReadWriteMany                                 #卷可以被多个Node以读写方式挂载
+#    - ReadOnlyMany                                  #卷可以被多个节点以只读方式挂载
+#    - ReadWriteOncePod                              #卷可以被单个 Pod 以读写方式挂载，仅支持部分存储的CSI驱动
+  volumeMode: Filesystem                              #定义一个卷是带着已格式化的文件系统来使用还是保持在原始块状态来使用,Filesystem或Block
+#  mountOptions:                                       #是挂载选项的列表
+#  - vers=3                                            #具体挂载选项因存储不同而异
+#  - nolock,tcp,noresvport
+#  nodeAffinity:                                       #节点亲和性
+#    required:                                         #条件要求
+#      nodeSelectorTerms:                              #节点选择器
+#      - matchExpressions:
+#        - key: for
+#          operator: In
+#          values:
+#          - database
+  persistentVolumeReclaimPolicy: Recycle              #定义当从持久卷声明释放策略: Retain-保留 Delete-删除 Recycle-回收，已弃用
+  storageClassName: "nfs-storage-class"               #这个持久卷所属于的 StorageClass 的名称。 空值意味着此卷不属于任何 StorageClass
+#  local:                                              #节点本地盘，节点亲和时直连本地磁盘或分区
+#    path: /dev/sdb1                                   #指向节点上卷的完整路径。它可以是一个目录或块设备（磁盘、分区...）
+#    fsType: xfs                                       #文件系统类型
+  nfs:
+    # real share directory
+    path: /opt/k8s/shared/opencloud/mysql/master      #NFS的导出路径
+    # nfs real ip
+    server: 192.168.2.2                               #NFS服务器IP
+    readOnly: false                                   #是否只读
+#  cephfs:
+#    monitors:                                         #Ceph Mon节点地址
+#      - 192.168.2.101:6789
+#      - 192.168.2.102:6789
+#      - 192.168.2.103:6789
+#    user: admin                                       #Ceph用户
+#    secretFile: /etc/ceph/admin.secret                #Ceph用户密钥文件
+#    path: /data/mysql/master                          #路径
+#    readOnly: false                                   #是否只读
+#  glusterfs:                                           #GlusterFS卷配置
+#    endpoints: glusterfs-cluster                       #GlusterFS端点定义
+#    path: mysql_master_vol                             #GlusterFS卷名称
+#    readOnly: false                                    #是否只读
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-slave-pv
+  namespace: opencloud
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: "nfs-storage-class"
+  nfs:
+    # real share directory
+    path: /opt/k8s/shared/opencloud/mysql/slave
+    # nfs real ip
+    server: 192.168.2.2

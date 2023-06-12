@@ -1,0 +1,25 @@
+apiVersion: v1                  #固定值
+kind: PersistentVolumeClaim     #持久卷申请
+metadata:                       #持久卷元数据
+  name: mysql-pvc               #持久卷名称
+  namespace: opencloud          #命名空间
+  labels:                       #自定义标签
+    db: mysql
+spec:
+  accessModes:                  #指定PVC的访问模式，例如ReadWriteOnce、ReadOnlyMany或ReadWriteMany
+    - ReadWriteMany
+  resources:                    #资源定义
+    requests:                   #最小资源
+      storage: 1Gi
+    limits:                     #资源上限
+      storage: 5Gi
+  storageClassName: standard    #指定PVC使用的存储类名称
+  volumeMode: Filesystem        #指定PVC的卷模式，例如Filesystem或Block
+  selector:                     #指定PVC选择器，用于选择符合条件的持久卷
+    matchLabels:
+      name: nfs-pv
+  volumeName: my-volume         #指定PVC使用的持久卷名称
+  dataSourceRef:                   #指定PVC使用的数据源，例如Secret或ConfigMap
+    kind: Secret
+    name: my-secret
+    apiGroup: v1

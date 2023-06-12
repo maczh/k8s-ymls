@@ -1,0 +1,36 @@
+apiVersion: v1                #版本号，固定
+kind: Service                 #资源类型，这里固定为Service，是软件服务（例如 mysql）的命名抽象，包含代理要侦听的本地端口（例如 3306）和一个选择算符，选择算符用来确定哪些 Pod 将响应通过代理发送的请求
+metadata:                     #元数据
+  name: opencloud-ecs-core    #服务名称，在同一命名空间内部当作当作服务主机名，如访问http://<service-name>:<port>/api/path就可以访问该服务的接口
+  namespace: opencloud        #服务归属的命名空间
+  labels:                     #自定义标签,kv,用于其他过滤服务
+    name: opencloud-ecs-core
+spec:                         #服务规格配置
+#  type: ClusterIp              #type 确定 Service 的公开方式。默认为 ClusterIP。 有效选项为 ExternalName、ClusterIP、NodePort 和 LoadBalancer。 “ClusterIP” 为端点分配一个集群内部 IP 地址用于负载均衡。 Endpoints 由 selector 确定，如果未设置 selector，则需要通过手动构造 Endpoints 或 EndpointSlice 的对象来确定。 如果 clusterIP 为 “None”，则不分配虚拟 IP，并且 Endpoints 作为一组端点而不是虚拟 IP 发布。 “NodePort” 建立在 ClusterIP 之上，并在每个节点上分配一个端口，该端口路由到与 clusterIP 相同的 Endpoints。 “LoadBalancer” 基于 NodePort 构建并创建一个外部负载均衡器（如果当前云支持），该负载均衡器路由到与 clusterIP 相同的 Endpoints。 “externalName” 将此 Service 别名为指定的 externalName。
+  ports:                        #本服务外放路由端口清单，可以是多个
+    - port: 8555                #服务将要公共的端口，即命名空间内其他Pod可以访问的端口
+      name: opencloud-ecs-core  #Service 中此端口的名称。这必须是 DNS_LABEL。 ServiceSpec 中的所有端口的名称都必须唯一。 在考虑 Service 的端点时，这一字段值必须与 EndpointPort 中的 name 字段相同。 如果此服务上仅定义一个 ServicePort，则为此字段为可选。
+      targetPort: 8555          #Pod对外端口号，即Pod内容器的暴露端口号
+      protocol: TCP             #端口的IP协议：TCP、UDP、SCTP
+#      nodePort: 8555            #当类型为 NodePort 或 LoadBalancer 时，Service 公开在节点上的端口， 通常由系统分配。如果指定了一个在范围内且未使用的值，则将使用该值，否则操作将失败。 如果在创建的 Service 需要该端口时未指定该字段，则会分配端口。 如果在创建不需要该端口的 Service时指定了该字段，则会创建失败。 当更新 Service 时，如果不再需要此字段（例如，将类型从 NodePort 更改为 ClusterIP），这个字段将被擦除。
+  selector:                   #将 Service 流量路由到具有与此 selector 匹配的标签键值对的 Pod
+    app: opencloud-ecs-core
+#  ipFamilies: ["IPv4"]              #iPFamilies 是分配给此服务的 IP 协议（例如 IPv4、IPv6）的列表。 该字段通常根据集群配置和 ipFamilyPolicy 字段自动设置。 如果手动指定该字段，且请求的协议在集群中可用，且 ipFamilyPolicy 允许，则使用；否则服务创建将失败。
+#  ipFamilyPolicy: SingleStack       #iPFamilyPolicy 表示此服务请求或要求的双栈特性。 如果没有提供值，则此字段将被设置为 SingleStack。 服务可以是 “SingleStack”（单个 IP 协议）、 “PreferDualStack”（双栈配置集群上的两个 IP 协议或单栈集群上的单个 IP 协议） 或 “RequireDualStack”（双栈上的两个 IP 协议配置的集群，否则失败）。 ipFamilies 和 clusterIPs 字段取决于此字段的值
+#  clusterIP: 10.11.23.15            #clusterIP 是服务的 IP 地址，通常是随机分配的。 如果地址是手动指定的，在范围内（根据系统配置），且没有被使用，它将被分配给服务，否则创建服务将失败。可选值 “None”、空字符串 (“”) 或有效的 IP 地址。 clusterIP 为 “None” 时会生成“无头服务”（无虚拟 IP），这在首选直接 Endpoint 连接且不需要代理时很有用。 仅适用于 ClusterIP、NodePort、和 LoadBalancer 类型的服务
+#  clusterIPs: []                    #clusterIPs 是分配给该 Service 的 IP 地址列表，通常是随机分配的。 如果地址是手动指定的，在范围内（根据系统配置），且没有被使用，它将被分配给 Service；否则创建 Service 失败,clusterIPs 最多可包含两个条目（双栈系列，按任意顺序）
+#  externalIPs: []                   #externalIPs 是一个 IP 列表，集群中的节点会为此 Service 接收针对这些 IP 地址的流量。 这些 IP 不被 Kubernetes 管理。用户需要确保流量可以到达具有此 IP 的节点。 一个常见的例子是不属于 Kubernetes 系统的外部负载均衡器。
+#  sessionAffinity: None             #支持 “ClientIP” 和 “None”。用于维护会话亲和性。 启用基于客户端 IP 的会话亲和性。必须是 ClientIP 或 None。默认为 None。
+#  sessionAffinityConfig:            #会话亲和性配置
+#    clientIP:                       #基于客户端IP
+#      timeoutSeconds: 3600          # 指定 ClientIP 类型会话的维系时间秒数。 如果 ServiceAffinity == "ClientIP"，则该值必须 >0 && <=86400（1 天）。默认值为 10800（3 小时）
+#  loadBalancerIP: 10.11.23.12       #仅适用于服务类型: LoadBalancer。此功能取决于底层云提供商是否支持负载均衡器。 如果云提供商不支持该功能，该字段将被忽略。 已弃用: 该字段信息不足，且其含义因实现而异，而且不支持双栈。 从 Kubernetes v1.24 开始，鼓励用户在可用时使用特定于实现的注释。在未来的 API 版本中可能会删除此字段。
+#  loadBalancerSourceRanges: []      #如果设置了此字段并且被平台支持，将限制通过云厂商的负载均衡器的流量到指定的客户端 IP。 如果云提供商不支持该功能，该字段将被忽略。
+#  loadBalancerClass: internal-vip   #loadBalancerClass 是此 Service 所属的负载均衡器实现的类。 如果设置了此字段，则字段值必须是标签风格的标识符，带有可选前缀，例如 ”internal-vip” 或 “example.com/internal-vip”。 无前缀名称是为最终用户保留的。该字段只能在 Service 类型为 “LoadBalancer” 时设置。 如果未设置此字段，则使用默认负载均衡器实现。默认负载均衡器现在通常通过云提供商集成完成，但应适用于任何默认实现。 如果设置了此字段，则假定负载均衡器实现正在监测具有对应负载均衡器类的 Service。 任何默认负载均衡器实现（例如云提供商）都应忽略设置此字段的 Service。 只有在创建或更新的 Service 的 type 为 “LoadBalancer” 时，才可设置此字段。 一经设定，不可更改。当 Service 的 type 更新为 “LoadBalancer” 之外的其他类型时，此字段将被移除。
+#  allocateLoadBalancerNodePorts: false  #allocateLoadBalancerNodePorts 定义了是否会自动为 LoadBalancer 类型的 Service 分配 NodePort。默认为 true。 如果集群负载均衡器不依赖 NodePort，则可以设置此字段为 false。 如果调用者（通过指定一个值）请求特定的 NodePort，则无论此字段如何，都会接受这些请求。 该字段只能设置在 type 为 LoadBalancer 的 Service 上，如果 type 更改为任何其他类型，该字段将被移除。
+#  externalName: mysvc.opencloud.mydomain.com  #externalName 是发现机制将返回的外部引用，作为此服务的别名（例如 DNS CNAME 记录）。 不涉及代理。必须是小写的 RFC-1123 主机名 (https://tools.ietf.org/html/rfc1123)， 并且要求 type 为 “ExternalName”。
+#  externalTrafficPolicy: Local      #externalTrafficPolicy 描述了节点如何分发它们在 Service 的“外部访问”地址 （NodePort、ExternalIP 和 LoadBalancer IP）接收到的服务流量。 如果设置为 “Local”，代理将以一种假设外部负载均衡器将负责在节点之间服务流量负载均衡， 因此每个节点将仅向服务的节点本地端点传递流量，而不会伪装客户端源 IP。 （将丢弃错误发送到没有端点的节点的流量。） “Cluster” 默认值使用负载均衡路由到所有端点的策略（可能会根据拓扑和其他特性进行修改）
+#  internalTrafficPolicy: Cluster    #描述节点如何分发它们在 ClusterIP 上接收到的服务流量。 如果设置为 “Local”，代理将假定 Pod 只想与在同一节点上的服务端点通信，如果没有本地端点，它将丢弃流量。 “Cluster” 默认将流量路由到所有端点（可能会根据拓扑和其他特性进行修改）
+#  healthCheckNodePort: 8555         #指定 Service 的健康检查节点端口。 仅适用于 type 为 LoadBalancer 且 externalTrafficPolicy 设置为 Local 的情况。 如果为此字段设定了一个值，该值在合法范围内且没有被使用，则使用所指定的值。 如果未设置此字段，则自动分配字段值。外部系统（例如负载平衡器）可以使用此端口来确定给定节点是否拥有此服务的端点。 在创建不需要 healthCheckNodePort 的 Service 时指定了此字段，则 Service 创建会失败。
+#  publishNotReadyAddresses: true    #表示任何处理此 Service 端点的代理都应忽略任何准备就绪/未准备就绪的指示。 设置此字段的主要场景是为 StatefulSet 的服务提供支持，使之能够为其 Pod 传播 SRV DNS 记录，以实现对等发现。 为 Service 生成 Endpoints 和 EndpointSlice 资源的 Kubernetes 控制器对字段的解读是， 即使 Pod 本身还没有准备好，所有端点都可被视为 “已就绪”。
+

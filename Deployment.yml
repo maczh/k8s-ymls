@@ -1,5 +1,5 @@
 apiVersion: apps/v1         #版本号，固定
-kind: Deployment            #部署，固定
+kind: Deployment            #资源类型，这里固定是Deployment，是指Deployment资源,指支持自动更新模式的ReplicaSet
 metadata:                   #元数据
   name: opencloud-ecs-core    #Deployment名称，全局唯一
   namespace: opencloud        #Deployment命名空间，不填默认为default空间
