@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      # Label selector that determines which Pods belong to the StatefulSet.
+      # Must match spec -> template -> metadata -> labels
+      app: mysql
+  #service name that routes traffic to the pods created by the statefulsets
+  serviceName: mysql-db
+  template:
+    metadata:
+      labels:
+        app: mysql # Pod template's label selector
+    spec:
+      containers:
+      - name: mysql
+        imagePullPolicy: Always
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "root"
+        - name: MYSQL_USER
+          value: "myuser"
+        - name: MYSQL_PASSWORD
+          value: "mypass"
+        livenessProbe:
+          # Indicates whether the Container is running.
+          # If the liveness probe fails, the kubelet kills the Container, and the Container is subjected to its restart policy.
+          # If a Container does not provide a liveness probe, the default state is Success.
+          exec:
+            command: ["mysqladmin", "-p$(MYSQL_ROOT_PASSWORD)", "ping"]
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          # Indicates whether the Container is ready to service requests.
+          # If the readiness probe fails,
+          # the endpoints controller removes the Pod’s IP address from the endpoints of all Services that match the Pod.
+          # The default state of readiness before the initial delay is Failure.
+          # If a Container does not provide a readiness probe, the default state is Success.
+          exec:
+            command: ["mysql", "-h", "127.0.0.1", "-p$(MYSQL_ROOT_PASSWORD)", "-e", "SELECT 1"]
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "/mnt/data/prep-work.sh"]
+        volumeMounts:
+        - name: pvc
+          mountPath: /var/lib/mysql
+        - name: conf-vol
+          mountPath: /etc/my.cnf
+          subPath: my.cnf
+        - name: init-master-vol
+          mountPath: /opt/mysql/init/init-mysql-0.sql
+          subPath: init-mysql-0.sql
+        - name: init-slave-vol
+          mountPath: /opt/mysql/init/init-mysql-1.sql
+          subPath: init-mysql-1.sql
+      volumes:
+        - name: conf-vol
+          configMap:
+            name: my-set-config
+            items:
+              - key:
+                path:
+  volumeClaimTemplates:
+    - metadata:
+        name: pvc
+      spec:
+        accessModes: [ "ReadWriteMany" ]
+        resources:
+          requests:
+            storage: 20Gi
