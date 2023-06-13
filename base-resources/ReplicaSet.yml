@@ -1,0 +1,147 @@
+#Kubernetes的ReplicaSet是一种控制器，用于确保在Kubernetes集群中有指定数量的Pod副本正在运行。它可以自动扩展或缩小Pod的数量，以确保指定的副本数始终处于运行状态。当Pod失败或被删除时，ReplicaSet将自动创建新的Pod以替换它们。
+# ReplicaSet通常用于确保应用程序的可用性和可伸缩性。使用场景包括：
+# 在高流量时自动扩展应用程序的副本数
+# 确保应用程序的可用性，即使其中一个Pod失败
+# 在进行应用程序升级时，确保旧版本和新版本的Pod同时运行，以确保零停机时间
+apiVersion: apps/v1         #版本号，固定
+kind: ReplicaSet            #资源类型，这里固定是Deployment，是指Deployment资源,指支持自动更新模式的ReplicaSet
+metadata:                   #元数据
+  name: opencloud-ecs-core    #Deployment名称，全局唯一
+  namespace: opencloud        #Deployment命名空间，不填默认为default空间
+  labels:                     #自定义标签
+    app: opencloud-ecs-core
+  annotations:                #自定义非结构化键值映射
+    version: v0.0.1
+spec:                                 #定义 Deployment 预期行为的规约
+  replicas: 2                         #预期 Pod 的数量
+  selector:                           #供Pod所用的标签选择器
+    # matchExpressions:                 #按表达式匹配
+    # - key: app                        #匹配的标签键
+    #   operator: In                    #匹配运算符 In/NotIn/Exists/DoesNotExist
+    #   values: ["opencloud-ecs-core"]  #匹配值数组
+    matchLabels:                      #标签匹配
+      app: opencloud-ecs-core         #匹配的kv
+  minReadySeconds: 1                  #Pod创建成功之后最少初始化时间，对于Java程序来说这个时间可能会比较久
+  template:                           #Pod模板定义
+    metadata:                         #模板元数据
+      labels:                         #模板自定义标签
+        app: opencloud-ecs-core
+    spec:                                                       #Pod模板规格
+      # initContainers:                                           #属于Pod的init容器列表
+      # ephemeralContainers:                                      #在此Pod中运行的临时容器列表
+      # imagePullSecrets:                                         #私有镜像仓库拉取的Secret
+      # - name: docker-registry-secret
+      containers:                                                 #Pod中的容器清单
+      - name: opencloud-ecs-core                                  #容器名称
+        imagePullPolicy: IfNotPresent                             #镜像拉取策略。"Always"、"Never"、"IfNotPresent" 之一。如果指定了 :latest 标签，则默认为 "Always"， 否则默认为 "IfNotPresent"。无法更新
+        image: dev.gamecdn.com:5000/opencloud-ecs-core:v0.0.1     #镜像名称、仓库、版本
+        # command: ["opencloud-ecs-core","-f", "opencloud-ecs-core.yml"]  #执行容器内的命令，如果未提供，则使用容器镜像的ENDPOINT.变量引用 $(VAR_NAME) 使用容器的环境进行扩展
+        # args: []                                                  #endpoint执行参数，如果未提供，则使用容器镜像的 CMD 设置
+        # workingDir: /apps                                         #容器的工作目录。如果未指定，将使用容器运行时的默认值，默认值可能在容器镜像中配置
+        ports:                                                    #容器端口映射清单
+          - containerPort: 8555                                   #要在 Pod 的 IP 地址上公开的端口号
+            # hostIP:                                               #绑定外部端口的主机 IP
+            # hostPort:                                             #要在主机上公开的端口号
+            # name:                                                 #如果设置此字段，这必须是 IANA_SVC_NAME 并且在 Pod 中唯一。 Pod 中的每个命名端口都必须具有唯一的名称。服务可以引用的端口的名称。
+            protocol: TCP                                         #端口协议。必须是 UDP、TCP 或 SCTP。默认为 TCP。
+        # env:                                                      #环境参数定义
+        # - name: ENV_VAR1_NAME                                     #环境变量名
+        #   value: test_value                                       #环境变量值
+        # - name: ENV_VAR2_NAME
+        #   valueFrom:                                              #从ConfigMap或元数据labels获取值
+        #     configMapKeyRef:                                      #从ConfigMap引用
+        #       name: test_cm                                       #被引用的comfigMap的名称
+        #       key: ssl                                            #configMap中的key
+        # - name: ENV_VAR3_NAME
+        #   valueFrom:
+        #     fieldRef: metadata.labels['app']                      #选择 Pod 的一个字段：支持 metadata.name、metadata.namespace、metadata.labels['<KEY>']、 metadata.annotations['<KEY>']、spec.nodeName、spec.serviceAccountName、status.hostIP status.podIP、status.podIPs
+        #     resourceFieldRef: limit.cpu                           #选择容器的资源：目前仅支持资源限制和请求（limits.cpu、limits.memory、limits.ephemeral-storage、 requests.cpu、requests.memory 和 requests.ephemeral-storage）
+        #     secretKeyRef:                                         #在 Pod 的名字空间中选择 Secret 的主键
+        #       name: test-secret                                   #被引用的secret名称
+        #       key: test-key                                       #要选择的Secret的key
+        # envFrom:                                                  #用来在容器中填充环境变量的数据源列表
+        # - configMapRef:                                           #从configMap导入
+        #   name: env-configmap                                     #要导入的环境变量ConfigMap名称
+        # prefix: MYSQL_                                            #导入key的前缀
+        # secretRef:                                                #从指定的secret导入
+        #   name: env-secret                                        #要导入的secret名称
+        volumeMounts:                                               #要挂载到容器文件系统中的 Pod 卷
+        - name: logs                                                #挂载点名称，必须与volumes中名称匹配
+          mountPath: /opt/logs                                      #挂载到容器内的路径
+          # readOnly: false                                           #是否只读模式，默认为false，即为读写模式
+        - name: cfg                                                 #挂载ConfigMap中一个文件
+          mountPath: /etc/mysql.cnf                                 #挂载成文件
+          subPath: etc/mysql.cnf                                    #必须与volumns中cm配置的path相同，用于约束权挂载此文件，不影响被挂载的目录中其他文件
+        # volumeDevices:                                              #是容器要使用的块设备列表
+        # - name: "pvc-1"                                             #name 必须与 Pod 中的 persistentVolumeClaim 的名称匹配
+        #   devicePath: /data                                         #设备将被映射到的容器内的路径
+        # resources:                                                  #资源限额配置
+        #   requests:                                                 #最小需求
+        #     cpu:  100m                                              #CPU资源，10%core
+        #     memory: 256Mi                                           #最小内存需求
+        #   limits:                                                   #最大限额
+        #     cpu: 500m                                               #cpu最大允许使用0.5core
+        #     memory: 1Gi                                             #内存最大允许1G
+      #   lifecycle:                                                  #管理系统应对容器生命周期事件采取的行动
+      #     postStart:                                                #创建容器后立即调用 postStart。如果处理程序失败，则容器将根据其重新启动策略终止并重新启动。 容器的其他管理阻塞直到钩子完成
+      #       exec:                                                   #在容器内执行的命令行
+      #         command: []                                           #要在容器内执行的命令行，命令的工作目录是容器文件系统中的根目录（'/'）。 该命令只是被通过 exec 执行，而不会单独启动一个 Shell 来运行，因此传统的 Shell 指令（'|' 等）将不起作用。要使用某 Shell，你需要显式调用该 Shell。 退出状态 0 被视为活动/健康，非零表示不健康
+      #       httpGet:                                                #执行http接口调用
+      #         port: 8555                                            #容器内http端口号
+      #         host:                                                 #http的host主机名
+      #         httpHeaders:                                          #自定义http头列表
+      #         - name: Request-Id                                    #自定义http头的key
+      #           value: 2873wbjkebfd2i                               #自定义http头的值
+      #         path: /init                                           #URI路径
+      #         scheme: HTTP                                          #http或https
+      #     preStop:                                                  #在容器因 API 请求或管理事件（如存活态探针/启动探针失败、抢占、资源争用等）而终止之前立即调用。 如果容器崩溃或退出，则不会调用处理程序
+      #       exec:                                                   #在容器内执行的命令行
+      #         command: []                                           #要在容器内执行的命令行，命令的工作目录是容器文件系统中的根目录（'/'）。 该命令只是被通过 exec 执行，而不会单独启动一个 Shell 来运行，因此传统的 Shell 指令（'|' 等）将不起作用。要使用某 Shell，你需要显式调用该 Shell。 退出状态 0 被视为活动/健康，非零表示不健康
+      #       httpGet:                                                #执行http接口调用
+      #         port: 8555                                            #容器内http端口号
+      #         host:                                                 #http的host主机名
+      #         httpHeaders:                                          #自定义http头列表
+      #         - name: Request-Id                                    #自定义http头的key
+      #           value: 2873wbjkebfd2i                               #自定义http头的值
+      #         path: /close                                           #URI路径
+      #         scheme: HTTP                                          #http或https
+      #     livenessProbe:                                            #定期探针容器活跃度。如果探针失败，容器将重新启动
+      #       exec:                                                   #在容器内执行的命令行
+      #         command: []                                           #要在容器内执行的命令行，命令的工作目录是容器文件系统中的根目录（'/'）。 该命令只是被通过 exec 执行，而不会单独启动一个 Shell 来运行，因此传统的 Shell 指令（'|' 等）将不起作用。要使用某 Shell，你需要显式调用该 Shell。 退出状态 0 被视为活动/健康，非零表示不健康
+      #       httpGet:                                                #执行http接口调用
+      #         port: 8555                                            #容器内http端口号
+      #         host:                                                 #http的host主机名
+      #         httpHeaders:                                          #自定义http头列表
+      #         - name: Request-Id                                    #自定义http头的key
+      #           value: 2873wbjkebfd2i                               #自定义http头的值
+      #         path: /init                                           #URI路径
+      #         scheme: HTTP                                          #http或https
+      #       initialDelaySeconds: 10                                 #初始化延时秒数
+      #       periodSeconds: 5                                        #探针时间间隔
+      #       timeoutSeconds: 1                                       #超时时间
+      #       failureThreshold: 2                                     #失败次数，1-3次
+      #       successThreshold: 1                                     #最少成功次数
+      #     readinessProbe:                                           #定期探测容器服务就绪情况。如果探针失败，容器将被从服务端点中删除
+      #     # 同livenessProbe
+      #     startupProbe:                                             #startupProbe 表示 Pod 已成功初始化。如果设置了此字段，则此探针成功完成之前不会执行其他探针
+      #     # 同livenessProbe
+      volumes:                                                        #卷来源描述
+      - name: logs                                                    #卷名称
+        hostPath:                                                     #节点本地主机路径
+          path: /opt/k8s/shared/opencloud/logs                        #节点本地路径
+      - name: data
+        persistentVolumeClaim:                                        #挂载PVC卷到容器
+          claimName: nfs-pvc                                          #pvc名称
+          readOnly: false                                             #是否只读
+      - name: cfg
+        configMap:                                                    #预定义的configMap
+          name: cfg-vol-cm                                            #configMap名称
+          items:                                                      #允许投射的文件名key
+            - key: mysql.cnf                                          #键
+              path: etc/                                              #将键映射到的文件的相对路径。不能是绝对路径。不能包含路径元素 “..”。不能以字符串 “..” 开头
+      - name: sec
+        secret:                                                       #使用secret映射卷
+          secretName: vol-secret                                      #要使用的、位于 Pod 的名字空间中的 Secret 名称
+          items:                                                      #允许投射的文件名key
+            - key: mysql.cnf                                          #键
+              path: etc/                                              #将键映射到的文件的相对路径。不能是绝对路径。不能包含路径元素 “..”。不能以字符串 “..” 开头

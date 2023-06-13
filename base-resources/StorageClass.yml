@@ -7,6 +7,7 @@ apiVersion: storage.k8s.io/v1     #版本号，固定值
 kind: StorageClass                #存储类，固定值，StorageClass描述了一类存储的参数，可以动态地为其提供PersistentVolumes。
 metadata:                         #元数据
   name: nfs-storage               #名称
+  namespace: opencloud
 provisioner: kubernetes.io/nfs    #存储类型 1. kubernetes.io/aws-ebs：用于使用Amazon Elastic Block Store（EBS）作为存储的provisioner。
                                         #  2. kubernetes.io/azure-disk：用于使用Azure磁盘作为存储的provisioner。
                                         #  3. kubernetes.io/azure-file：用于使用Azure文件共享作为存储的provisioner。
@@ -33,6 +34,6 @@ volumeBindingMode: Immediate            #指定如何将PersistentVolume（PV）
                                         #  默认情况下， volumeBindingMode 被设置为 Immediate ，这意味着PV将立即绑定到节点。
 parameters:                           #定义存储对应的参数，根据不同类型存储参数也不相同
   archiveOnDelete: "false"
-  path: /opt/k8s/shared
+  path: /opt/nfs/opencloud
   server: 192.168.2.2
   readOnly: "false"

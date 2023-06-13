@@ -1,0 +1,29 @@
+#Kubernetes的CronJob是一种控制器，用于在指定的时间间隔内定期运行Job。它可以确保在Kubernetes集群中的一个或多个Pod中运行一个或多个容器，以执行周期性的任务。CronJob通常用于需要定期执行的任务，例如数据备份、日志清理等。
+#使用CronJob的场景包括：
+# 定期执行任务，例如每天备份数据库
+# 定期清理日志文件
+# 定期更新数据
+apiVersion: batch/v1                            #版本号
+kind: CronJob                                   #资源类型
+metadata:                                       #元数据
+  name: my-cronjob                              #定时任务名称
+  namespace: opencloud                          #命名空间
+  labels:                                       #自定义标签
+    app: opencloud
+spec:                                           #规格定义
+  schedule: "*/5 * * * *"                       #cron格式的定时任务时间表
+  timeZone: Asia/Chongqing                      #时区
+  concurrencyPolicy: Allow                      #指定如何处理作业的并发执行。 "Allow" (默认)：允许 CronJobs 并发运行；"Forbid"：禁止并发运行，如果上一次运行尚未完成则跳过下一次运行；"Replace"：取消当前正在运行的作业并将其替换为新作业。
+  startingDeadlineSeconds: 120                  #可选字段。当作业因为某种原因错过预定时间时，设定作业的启动截止时间（秒）。错过排期的作业将被视为失败的作业。
+  suspend: false                                #这个标志告诉控制器暂停后续的执行，它不适用于已经开始的执行。默认为 false。
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: my-container
+              image: my-image
+              command: ["echo", "Hello, world!"]
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3                 #要保留的成功完成作业数。值必须是非负整数。默认值为 3。
+  failedJobsHistoryLimit: 3                     #要保留的以失败状态结束的作业个数。值必须是非负整数。默认值为 1。
