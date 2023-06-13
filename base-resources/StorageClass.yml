@@ -1,0 +1,38 @@
+#Kubernetes中的StorageClass用于定义动态存储卷的类型和属性，以及如何动态地为PersistentVolumeClaim（PVC）分配存储卷。StorageClass提供了一种抽象层，使得应用程序可以与存储系统解耦，并且可以根据需要动态地为应用程序分配存储资源。
+#一些使用StorageClass的具体场景包括：
+#1. 动态存储分配：StorageClass可以用于动态地为PVC分配存储卷，使得应用程序可以根据需要动态地请求存储资源。
+#2. 存储类型管理：StorageClass可以用于管理不同类型的存储卷，如本地存储、网络存储、云存储等。
+#3. 存储属性管理：StorageClass可以用于管理存储卷的属性，如存储容量、存储速度、存储可靠性等。
+apiVersion: storage.k8s.io/v1     #版本号，固定值
+kind: StorageClass                #存储类，固定值，StorageClass描述了一类存储的参数，可以动态地为其提供PersistentVolumes。
+metadata:                         #元数据
+  name: nfs-storage               #名称
+provisioner: kubernetes.io/nfs    #存储类型 1. kubernetes.io/aws-ebs：用于使用Amazon Elastic Block Store（EBS）作为存储的provisioner。
+                                        #  2. kubernetes.io/azure-disk：用于使用Azure磁盘作为存储的provisioner。
+                                        #  3. kubernetes.io/azure-file：用于使用Azure文件共享作为存储的provisioner。
+                                        #  4. kubernetes.io/cinder：用于使用OpenStack Cinder作为存储的provisioner。
+                                        #  5. kubernetes.io/glusterfs：用于使用GlusterFS作为存储的provisioner。
+                                        #  6. kubernetes.io/nfs：用于使用NFS作为存储的provisioner。
+                                        #  7. kubernetes.io/cephfs：用于使用CephFS作为存储的provisioner。
+                                        #  8. kubernetes.io/flocker：用于使用Flocker作为存储的provisioner。
+                                        #  9. kubernetes.io/portworx-volume：用于使用Portworx作为存储的provisioner。
+                                        #  10. kubernetes.io/quobyte：用于使用Quobyte作为存储的provisioner。
+                                        #  11. kubernetes.io/rbd：用于使用Ceph RBD作为存储的provisioner。
+                                        #  12. kubernetes.io/vsphere-volume：用于使用vSphere存储作为存储的provisioner。
+                                        #  13. kubernetes.io/scaleio：用于使用EMC ScaleIO作为存储的provisioner。
+                                        #  14. kubernetes.io/storageos：用于使用StorageOS作为存储的provisioner。
+allowVolumeExpansion: true         #是否允许扩充卷
+mountOptions: ["vers=3","nolock,tcp,noresvport"]    #挂载时的选项
+reclaimPolicy: Delete                   #用于指定在与PersistentVolumeClaim（PVC）相关联的Pod被删除时如何处理PersistentVolume（PV）。有三种可用的选项：
+                                        #  1.  Retain ：在PVC被删除时，相关的PV将不会被删除，而是被标记为“保留”。这意味着PV可以手动重新绑定到新的PVC上，以便在以后的时间使用。
+                                        #  2.  Delete ：在PVC被删除时，相关的PV将被自动删除。
+                                        #  3.  Recycle ：在PVC被删除时，相关的PV将被清空并准备好重新使用。这个选项已经被弃用，推荐使用Dynamic Provisioning代替
+volumeBindingMode: Immediate            #指定如何将PersistentVolume（PV）绑定到节点。有两种可用的选项：
+                                        #  1.  Immediate ：PV将立即绑定到节点。这意味着在Pod需要使用PV之前，PV必须已经绑定到节点。
+                                        #  2.  WaitForFirstConsumer ：PV将等待第一个Pod使用它之前不会绑定到节点。这意味着在Pod需要使用PV之前，PV不需要绑定到节点。
+                                        #  默认情况下， volumeBindingMode 被设置为 Immediate ，这意味着PV将立即绑定到节点。
+parameters:                           #定义存储对应的参数，根据不同类型存储参数也不相同
+  archiveOnDelete: "false"
+  path: /opt/k8s/shared
+  server: 192.168.2.2
+  readOnly: "false"

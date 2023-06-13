@@ -1,0 +1,18 @@
+#Kubernetes中的ClusterRoleBinding是一种API对象，用于将ClusterRole绑定到特定的用户、服务账户或组上，从而授予它们对Kubernetes资源的访问权限。ClusterRoleBinding的作用是将ClusterRole与用户或服务账户相关联，从而使这些用户或服务账户能够访问Kubernetes中的资源。
+#ClusterRoleBinding的使用场景包括但不限于以下几个方面：
+#1. 授权管理：ClusterRoleBinding可以用于授权管理，例如将ClusterRole绑定到特定的用户、服务账户或组上，从而授予它们对Kubernetes资源的访问权限。
+#2. 多租户管理：ClusterRoleBinding可以用于多租户管理，例如将ClusterRole绑定到特定的命名空间上，从而授予该命名空间内的用户或服务账户对该命名空间中的资源的访问权限。
+#3. 安全管理：ClusterRoleBinding可以用于安全管理，例如将ClusterRole绑定到特定的服务账户上，从而授予它们对Kubernetes资源的访问权限，并限制其他用户的访问权限。
+apiVersion: rbac.authorization.k8s.io/v1      #版本号，固定值
+kind: ClusterRoleBinding                      #资源类型，固定值
+metadata:                                     #元数据
+  name: my-cluster-role-binding               #名称
+subjects:                                     #包含对角色绑定所适用的对象或用户标识的引用。其中可以包含直接 API 对象的引用或非对象（如用户名和组名）的值
+  - kind: User                                #被引用的对象的类别。这个 API 组定义的值是 User、Group 和 ServiceAccount。 如果 Authorizer 无法识别类别值，则 Authorizer 应报告一个错误
+    name: my-user                             #被引用的对象的名称
+    apiGroup: rbac.authorization.k8s.io       #被引用的api组
+    namespace: opencloud                      #被引用对象的命名空间。 如果对象类别是 "User" 或 "Group" 等非命名空间作用域的对象且该值不为空， 则 Authorizer 应报告一个错误。
+roleRef:                                      #引用ClusterRole中的授权策略
+  kind: ClusterRole                           #Role资源类型
+  name: my-cluster-role                       #要引用的ClusterRole名称
+  apiGroup: rbac.authorization.k8s.io         #被引用的api组

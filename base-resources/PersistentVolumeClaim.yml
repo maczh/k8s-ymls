@@ -1,3 +1,8 @@
+#Kubernetes中的PersistentVolumeClaim（PVC）是一种API对象，用于管理Pod对持久化存储的请求。PVC可以让Pod请求特定的存储资源，并将其挂载到Pod中，从而实现数据持久化。
+#PVC的使用场景包括但不限于以下几个方面：
+#1. 数据持久化：PVC可以用于实现数据持久化，将Pod中的数据存储到持久化存储中，避免数据丢失。
+#2. 存储资源管理：PVC可以用于管理存储资源，例如请求特定的存储容量、存储类别等。
+#3. 存储资源共享：PVC可以用于实现存储资源共享，多个Pod可以共享同一个PVC中的存储资源。
 apiVersion: v1                  #固定值
 kind: PersistentVolumeClaim     #持久卷申请
 metadata:                       #持久卷元数据

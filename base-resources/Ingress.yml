@@ -1,3 +1,9 @@
+#  Kubernetes中的Ingress是一种API对象，用于管理外部流量的访问。Ingress可以将外部流量路由到Kubernetes集群中的不同服务，支持多种路由规则和负载均衡算法。
+#    Ingress的使用场景包括但不限于以下几个方面：
+#    1. 外部流量管理：Ingress可以用于管理外部流量的访问，将外部请求路由到不同的服务中。
+#    2. 路由规则：Ingress支持多种路由规则，例如基于主机名、路径、HTTP方法等的路由规则。
+#    3. SSL终止：Ingress可以用于SSL终止，将SSL/TLS流量解密并将其转发到后端服务。
+#    4. 负载均衡：Ingress支持多种负载均衡算法，例如轮询、IP散列、最少连接等算法。
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

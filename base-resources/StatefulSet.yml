@@ -1,3 +1,8 @@
+#Kubernetes中的StatefulSet用于管理有状态应用程序的部署和伸缩。StatefulSet提供了有状态应用程序的唯一标识符和稳定的网络标识符，使得这些应用程序可以在部署和伸缩时保持其标识符和网络标识符不变。StatefulSet还提供有序的部署和缩放，以确保有状态应用程序的数据完整性和可用性。
+#一些使用StatefulSet的具体场景包括：
+#1. 有状态应用程序：StatefulSet适用于需要持久化存储和唯一标识符的有状态应用程序，如数据库、消息队列等。
+#2. 数据库集群：StatefulSet可以用于部署和伸缩数据库集群，如MySQL、PostgreSQL等。
+#3. 分布式系统：StatefulSet可以用于部署和伸缩分布式系统，如Zookeeper、Kafka、Nacos集群等。
 apiVersion: apps/v1         #版本号，固定
 kind: StatefulSet            #资源类型，这里固定是StatefulSet，是指有状态部署集合
 metadata:                   #元数据
@@ -98,6 +103,9 @@ spec:                                 #定义 StatefulSet 预期行为的规约,
         - name: logs                                                #挂载点名称，必须与volumes中名称匹配
           mountPath: /opt/logs                                      #挂载到容器内的路径
           # readOnly: false                                           #是否只读模式，默认为false，即为读写模式
+        - name: cfg                                                 #挂载ConfigMap中一个文件
+          mountPath: /etc/mysql.cnf                                 #挂载成文件
+          subPath: etc/mysql.cnf                                    #必须与volumns中cm配置的path相同，用于约束权挂载此文件，不影响被挂载的目录中其他文件
         # volumeDevices:                                              #是容器要使用的块设备列表
         # - name: "pvc-1"                                             #name 必须与 Pod 中的 persistentVolumeClaim 的名称匹配
         #   devicePath: /data                                         #设备将被映射到的容器内的路径
@@ -170,4 +178,4 @@ spec:                                 #定义 StatefulSet 预期行为的规约,
           secretName: vol-secret                                      #要使用的、位于 Pod 的名字空间中的 Secret 名称
           items:                                                      #允许投射的文件名key
             - key: mysql.cnf                                          #键
-              path: etc/                                              #将键映射到的文件的相对路径。不能是绝对路径。不能包含路径元素 “..”。不能以字符串 “..” 开头
+              path: etc/mysql.cnf                                     #将键映射到的文件的相对路径。不能是绝对路径。不能包含路径元素 “..”。不能以字符串 “..” 开头

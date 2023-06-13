@@ -1,3 +1,8 @@
+#  Kubernetes中的Deployment是一种控制器，用于管理Pod的部署和更新。Deployment可以确保指定数量的Pod副本正在运行，并且可以在更新时实现滚动更新，以避免服务中断。
+#    Deployment的使用场景包括但不限于以下几个方面：
+#    1. 应用程序部署：Deployment可以用于部署应用程序，确保指定数量的Pod副本正在运行，并且在更新时实现滚动更新，以避免服务中断。
+#    2. 应用程序版本控制：Deployment可以用于控制应用程序的版本，以便在需要时回滚到先前的版本。
+#    3. 应用程序伸缩：Deployment可以用于根据负载自动调整应用程序的副本数量，以提高可用性和性能。
 apiVersion: apps/v1         #版本号，固定
 kind: Deployment            #资源类型，这里固定是Deployment，是指Deployment资源,指支持自动更新模式的ReplicaSet
 metadata:                   #元数据
@@ -71,6 +76,9 @@ spec:                                 #定义 Deployment 预期行为的规约
         - name: logs                                                #挂载点名称，必须与volumes中名称匹配
           mountPath: /opt/logs                                      #挂载到容器内的路径
           # readOnly: false                                           #是否只读模式，默认为false，即为读写模式
+        - name: cfg                                                 #挂载ConfigMap中一个文件
+          mountPath: /etc/mysql.cnf                                 #挂载成文件
+          subPath: etc/mysql.cnf                                    #必须与volumns中cm配置的path相同，用于约束权挂载此文件，不影响被挂载的目录中其他文件
         # volumeDevices:                                              #是容器要使用的块设备列表
         # - name: "pvc-1"                                             #name 必须与 Pod 中的 persistentVolumeClaim 的名称匹配
         #   devicePath: /data                                         #设备将被映射到的容器内的路径
