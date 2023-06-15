@@ -1,0 +1,16 @@
+# Redis-Proxy Config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-proxy
+  namespace: opencloud
+data:
+  proxy.conf: |
+    cluster redis:6379     # 配置为Redis Cluster Service
+    bind 0.0.0.0
+    port 7777   # redis-cluster-proxy 对外暴露端口
+    threads 8   # 线程数量
+    daemonize no
+    enable-cross-slot yes
+    auth ykNI4vObMsP14yC7     # 配置Redis Cluster 认证密码
+    log-level error

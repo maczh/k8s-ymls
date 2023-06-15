@@ -12,6 +12,11 @@ spec:
       targetPort: 6379
       protocol: TCP
       nodePort: 32222
+    - name: gossip
+      port: 16379
+      targetPort: 16379
+      protocol: TCP
+      nodePort: 32223
   selector:
     app: redis
   type: NodePort
