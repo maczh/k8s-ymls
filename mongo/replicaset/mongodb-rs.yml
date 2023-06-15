@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-rs-cm
+  namespace: opencloud
+data:
+  keyfile: |
+    v3WHNtpu3f5AK+wcUy8I0h3b6UFFEG2vF7x6gigOrFpZ592JUnEln3cqcXA4lKExGm/aNdK+ULPXVR7qBTiLlI+RJ61ahWwsR5yuPJDhbIQAsTvkvbS2K7MZMHUAso6VB18vMQkbNH7UE7xGG4YnR3GnQgOoRJVedST1CYXhCdt5JKx4XPW22S9RB1iuGslrLcU4IBZQJ3QbjCHmSrDIB4BET4An83RzTD+dZXVT61HbYeqeSfnvSXA6wXbFVqI/gUK90jV0JG/WiB3IYoMCMw6bQteiUpxAaYI2MOI80/4ES+EJAN5rerbpBdT6stIVr32EnKeFtLR/F5qtmY1yIuJWjP/mB85yYTEzS9oa3+bFWUkxQ1Od03Dqyya6sLppT0gRr2dseVA5eEXHmh8hBGv+ND1eFIeErONM1Oi19zdovnNERAIKbcqSsmlDYRLwaw5GmVlSgRoAyWCUuMyQhPRbQA0J06sEwnbqcjN9q29uaHfGab7r9ZjZJsvIHtYrSRoj+Kjtn4c0x/TDkTeQ/rmrOtIFOceNK9QXk2YplhZ0htDRluRPNonqYShLCF19/W7Ux+EfBaG4yROKzonRWcQHJEZuTiZxdsF/iDyml5w1kGs80XYeNAakRnHXR+1sbb5ctM/eaDfFuEycSsfXGD7RLIm6BXLzOA2rXUcj0ffnqot6CabI3C/ru052Rb5U8rWDA56pNkgwSq8P5Sw9kQgrQZ+RjFcGMPxD2KpM94scBT0HSsBTrs44pj3Wb3bqpTpzVL8NwY8ATv+HbIbpArazVxZN6uMR/M7m8g3uwO+Yl1avoKHwyrZuPwI6zlYHeg+PDcH4fntSa6GG8aWvOZWHHPq0YQkf1WYaRbB5qNMkD5hb4MRDaPHf7xKTppYntyBgbz338dSkl+J4U3Yogj+iKpWZtsE6ecRxZAIBxIi0a9+xOSv6HSZmwGkEBYMYC6rBivuGbO+sAiyM3hcUZNGAxYCsspqyWQWQI1eDb4LaV7ov
+  mongod_rs.conf: |+
+    systemLog:
+      destination: file
+      logAppend: true
+      path: /data/mongod.log
+    storage:
+      dbPath: /data
+      journal:
+        enabled: true
+      directoryPerDB: true
+      wiredTiger:
+        engineConfig:
+          cacheSizeGB: 4
+          directoryForIndexes: true
+    processManagement:
+      fork: true
+      timeZoneInfo: /usr/share/zoneinfo
+      pidFilePath: /data/mongod.pid
+    net:
+      port: 27017
+      bindIp: 0.0.0.0
+      maxIncomingConnections: 5000
+    security:
+      keyFile: /data/configdb/keyfile
+      authorization: enabled
+    replication:
+      oplogSizeMB: 5120
+      replSetName: trunkingReplSet
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-rs
+  namespace: opencloud
+spec:
+  serviceName: mongodb-rs
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb-rs
+  template:
+    metadata:
+      labels:
+        app: mongodb-rs
+    spec:
+      imagePullSecrets:
+        - name: dev.gamecdn.com.secret
+      containers:
+        - name: mongo
+          image: core.harbor.domain:31193/opencloud/mongo:4.4.14
+          ports:
+            - containerPort: 27017
+              name: mongo-pod-port
+          command: ["sh"]
+          args:
+            - "-c"
+            - |
+              set -ex
+              mongod --config /data/configdb/mongod_rs.conf
+              sleep infinity
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: conf
+              mountPath: /data/configdb
+              readOnly: false
+            - name: data
+              mountPath: /data
+              readOnly: false
+      volumes:
+        - name: conf
+          configMap:
+            name: mongodb-rs-cm
+            defaultMode: 0600
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: nfs

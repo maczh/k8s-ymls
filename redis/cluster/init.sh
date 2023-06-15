@@ -1,0 +1,1 @@
+kubectl exec -it redis-0  -n opencloud   -- redis-cli -a ykNI4vObMsP14yC7  --cluster create --cluster-replicas 1 $(kubectl get pods -l app=redis -n opencloud -o jsonpath='{range.items[*]}{.status.podIP}:6379 {end}')

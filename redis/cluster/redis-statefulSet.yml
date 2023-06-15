@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: opencloud
+spec:
+  serviceName: redis
+  replicas: 6
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:latest
+          ports:
+            - containerPort: 6379
+              name: client
+            - containerPort: 16379
+              name: gossip
+          command: ["/etc/redis/fix-ip.sh", "redis-server", "/etc/redis/redis.conf"]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/redis/
+              readOnly: false
+            - name: data
+              mountPath: /data
+              readOnly: false
+      volumes:
+        - name: conf
+          configMap:
+            name: redis
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        #annotations:
+        #  volume.beta.kubernetes.io/storage-class: "redis-nfs-storage"
+      spec:
+        storageClassName: "nfs"
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 10Gi
