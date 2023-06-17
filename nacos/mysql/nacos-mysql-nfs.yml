@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-nacos
+  namespace: opencloud
+  labels:
+    name: mysql-nacos
+spec:
+  replicas: 1
+  serviceName: mysql-nacos
+  selector:
+    matchLabels:
+      name: mysql-nacos
+  template:
+    metadata:
+      labels:
+        name: mysql-nacos
+    spec:
+      containers:
+        - name: mysql-nacos
+          image: nacos/nacos-mysql:5.7
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "DKu0zGmNYRKygKl"
+            - name: MYSQL_DATABASE
+              value: "nacos"
+            - name: MYSQL_USER
+              value: "nacos"
+            - name: MYSQL_PASSWORD
+              value: "pyYhdWPZrJKGTAs"
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: nfs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-nacos
+  namespace: opencloud
+  labels:
+    name: mysql-nacos
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    name: mysql-nacos

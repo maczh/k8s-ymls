@@ -36,8 +36,8 @@ spec:                                 #定义 Deployment 预期行为的规约
     spec:                                                       #Pod模板规格
       # initContainers:                                           #属于Pod的init容器列表
       # ephemeralContainers:                                      #在此Pod中运行的临时容器列表
-      # imagePullSecrets:                                         #私有镜像仓库拉取的Secret
-      # - name: docker-registry-secret
+#      imagePullSecrets:                                         #私有镜像仓库拉取的Secret
+#      - name: docker-registry-secret
       containers:                                                 #Pod中的容器清单
       - name: opencloud-ecs-core                                  #容器名称
         imagePullPolicy: IfNotPresent                             #镜像拉取策略。"Always"、"Never"、"IfNotPresent" 之一。如果指定了 :latest 标签，则默认为 "Always"， 否则默认为 "IfNotPresent"。无法更新
