@@ -1,32 +1,30 @@
-# HEADLESS SERVICE
+# Headless service for stable DNS entries of StatefulSet members.
 apiVersion: v1
 kind: Service
 metadata:
-  name: percona-galera-xtradb
-spec:
-  clusterIP: None
-  ports:
-    - name: galera-replication
-      port: 4567
-      targetPort: 4567
-    - name: state-transfer
-      port: 4568
-      targetPort: 4568
-    - name: state-snapshot
-      port: 4444
-      targetPort: 4444
-  selector:
-    app: mysql
----
-# SERVICIO CON BALANCEO
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql-db
+  name: mysql-ms
+  namespace: opencloud
+  labels:
+    app: mysql-ms
 spec:
   ports:
     - name: mysql
       port: 3306
-      targetPort: 3306
+  clusterIP: None
   selector:
-    app: mysql
+    app: mysql-ms
+---
+# Client service for connecting to any MySQL instance for reads.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-rw
+  namespace: opencloud
+  labels:
+    app: mysql-ms
+spec:
+  ports:
+    - name: mysql
+      port: 3306
+  selector:
+    app: mysql-ms

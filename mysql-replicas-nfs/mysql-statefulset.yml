@@ -1,80 +1,110 @@
-apiVersion: apps/v1
+apiVersion: apps/v1 # for versions before 1.8.0 use apps/v1beta1
 kind: StatefulSet
 metadata:
-  name: mysql
+  name: mysql-ms
+  namespace: opencloud
 spec:
-  replicas: 2
   selector:
     matchLabels:
-      # Label selector that determines which Pods belong to the StatefulSet.
-      # Must match spec -> template -> metadata -> labels
-      app: mysql
-  #service name that routes traffic to the pods created by the statefulsets
-  serviceName: mysql-db
+      app: mysql-ms
+  serviceName: mysql-ms
+  replicas: 3
   template:
     metadata:
       labels:
-        app: mysql # Pod template's label selector
+        app: mysql-ms
     spec:
+      initContainers:
+        - name: init-mysql
+          image: mysql:5.7
+          command: ["bash", "/mnt/config-map/int-mysql.sh"]
+          volumeMounts:
+            - name: conf
+              mountPath: /mnt/conf.d
+            - name: config-map
+              mountPath: /mnt/config-map
+        - name: clone-mysql
+          image: fxkjnj/xtrabackup:1.0
+          command: ["bash", "/mnt/config-map/clone-mysql.sh"]
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+            - name: config-map
+              mountPath: /mnt/config-map
       containers:
-      - name: mysql
-        imagePullPolicy: Always
-        image: mysql:5.7
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: "root"
-        - name: MYSQL_USER
-          value: "myuser"
-        - name: MYSQL_PASSWORD
-          value: "mypass"
-        livenessProbe:
-          # Indicates whether the Container is running.
-          # If the liveness probe fails, the kubelet kills the Container, and the Container is subjected to its restart policy.
-          # If a Container does not provide a liveness probe, the default state is Success.
-          exec:
-            command: ["mysqladmin", "-p$(MYSQL_ROOT_PASSWORD)", "ping"]
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-        readinessProbe:
-          # Indicates whether the Container is ready to service requests.
-          # If the readiness probe fails,
-          # the endpoints controller removes the Pod’s IP address from the endpoints of all Services that match the Pod.
-          # The default state of readiness before the initial delay is Failure.
-          # If a Container does not provide a readiness probe, the default state is Success.
-          exec:
-            command: ["mysql", "-h", "127.0.0.1", "-p$(MYSQL_ROOT_PASSWORD)", "-e", "SELECT 1"]
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-        lifecycle:
-          postStart:
+        - name: mysql
+          image: mysql:5.7
+          env:
+            - name: MYSQL_ALLOW_EMPTY_PASSWORD
+              value: "1"
+          ports:
+            - name: mysql
+              containerPort: 3306
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+            - name: config-map
+              mountPath: /mnt/config-map
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
             exec:
-              command: ["/bin/sh", "-c", "/mnt/data/prep-work.sh"]
-        volumeMounts:
-        - name: pvc
-          mountPath: /var/lib/mysql
-        - name: conf-vol
-          mountPath: /etc/my.cnf
-          subPath: my.cnf
-        - name: init-master-vol
-          mountPath: /opt/mysql/init/init-mysql-0.sql
-          subPath: init-mysql-0.sql
-        - name: init-slave-vol
-          mountPath: /opt/mysql/init/init-mysql-1.sql
-          subPath: init-mysql-1.sql
+              command: ["mysqladmin", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              # Check we can execute queries over TCP (skip-networking is off).
+              command: ["mysql", "-h", "127.0.0.1", "-e", "SELECT 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 2
+            timeoutSeconds: 1
+        - name: xtrabackup
+          image: fxkjnj/xtrabackup:1.0
+          ports:
+            - name: xtrabackup
+              containerPort: 3307
+          command: ["bash", "/mnt/config-map/xtrabackup.sh"]
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+            - name: config-map
+              mountPath: /mnt/config-map
+          livenessProbe:
+            exec:
+              command: ["bash", "/mnt/config-map/readiness.sh"]
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
       volumes:
-        - name: conf-vol
+        - name: conf
+          emptyDir: {}
+        - name: config-map
           configMap:
-            name: my-set-config
-            items:
-              - key:
-                path:
+            name: mysql-ms
   volumeClaimTemplates:
     - metadata:
-        name: pvc
+        name: mysql-data
       spec:
-        accessModes: [ "ReadWriteMany" ]
+        #storageClassName: local-storage
+        storageClassName: "nfs"
+        accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 20Gi
+            storage: 10Gi

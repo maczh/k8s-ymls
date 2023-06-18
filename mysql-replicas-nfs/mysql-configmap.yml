@@ -1,255 +1,141 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: my-set-config
+  name: mysql-ms
+  namespace: opencloud
+  labels:
+    app: mysql-ms
 data:
-  run.sh: |
-    #!/bin/sh
-    Sleep 10 # wait for vars to set
-    SET_INDEX=${HOSTNAME##*-}
-    echo "Starting initializing for pod $SET_INDEX"
-    if [ "$SET_INDEX" = "0" ]; then
-      cp /mnt/scripts/my-0.cnf /mnt/data/my.cnf
-      cp /mnt/scripts/init-mysql-0.sql /mnt/data/b-init-mysql-cluster.sql
-      cp /mnt/scripts/init-test-script.sql /mnt/data/a-init-test-script.sql
-      cp /mnt/scripts/prep-work.sh /mnt/data/prep-work.sh
-      touch /mnt/data/auto.cnf       
-    elif [ "$SET_INDEX" = "1" ]; then
-      cp /mnt/scripts/my-1.cnf /mnt/data/my.cnf
-      cp /mnt/scripts/init-mysql-1.sql /mnt/data/b-init-mysql-cluster.sql
-      cp /mnt/scripts/init-test-script.sql /mnt/data/a-init-test-script.sql ## init.d.db files are executed in alphabatical order. non bootstrap members boot as super read only hence need to do init writes before cluster configs.      
-      cp /mnt/scripts/prep-work.sh /mnt/data/prep-work.sh
-      touch /mnt/data/auto.cnf
-    elif [ "$SET_INDEX" = "2" ]; then
-      echo "placeholder to add 3rd mysql member."
+  master-master.cnf: |
+    # Apply this config only on the group replication in multi-master.
+    [mysqld]
+    gtid_mode=ON
+    enforce_gtid_consistency=ON
+    master_info_repository=TABLE
+    relay_log_info_repository=TABLE
+    binlog_checksum=NONE
+    log_slave_updates=ON
+    log_bin=binlog
+    binlog_format=ROW
+    transaction_write_set_extraction=XXHASH64
+    loose-group_replication_group_name="eab9300f-004d-447e-8e7f-36d5c3cf43da"
+    loose-group_replication_start_on_boot=OFF
+    loose-group_replication_bootstrap_group=OFF
+    loose-group_replication_ip_whitelist=10.0.0.0/8
+    loose-group_replication_single_primary_mode=OFF
+    event_scheduler=OFF
+  int-mysql.sh: |
+    #!/bin/bash
+    set -ex
+    # Generate mysql server-id from pod ordinal index.
+    [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+    ordinal=${BASH_REMATCH[1]}
+    echo [mysqld] > /mnt/conf.d/server-id.cnf
+    # Add an offset to avoid reserved server-id=0 value.
+    echo server-id=$((100 + $ordinal)) >> /mnt/conf.d/server-id.cnf
+    # Copy appropriate conf.d files from config-map to emptyDir.
+    cp /mnt/config-map/master-master.cnf /mnt/conf.d/
+    echo "loose-group_replication_local_address=mysql-$ordinal.mysql:24901" >> /mnt/conf.d/master-master.cnf
+    echo "loose-group_replication_group_seeds=mysql-0.mysql:24901,mysql-1.mysql:24901,mysql-2.mysql:24901" >> /mnt/conf.d/master-master.cnf
+    echo "report_host=mysql-$ordinal.mysql" >> /mnt/conf.d/master-master.cnf
+    if [[ $ordinal -ne 0 ]]; then
+      echo "super_read_only=ON" >> /mnt/conf.d/master-master.cnf
+    fi
+  clone-mysql.sh: |
+    #!/bin/bash
+    set -ex
+    # Skip the clone if data already exists.
+    # TODO: think of something like: if data older than 24h- overwrit it!
+    [[ -d /var/lib/mysql/mysql ]] && exit 0
+    # Skip the clone on master (ordinal index 0).
+    [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+    ordinal=${BASH_REMATCH[1]}
+    [[ $ordinal -eq 0 ]] && exit 0
+    # Add support to crashed master
+    # Clone data from previous peer.
+    ncat --recv-only mysql-$(($ordinal-1)).mysql 3307 | xbstream -x -C /var/lib/mysql
+    # Prepare the backup.
+    xtrabackup --prepare --target-dir=/var/lib/mysql
+    date +%s > /var/lib/mysql/timestamp
+    rm -rf /var/lib/mysql/auto.cnf
+  xtrabackup.sh: |
+    #!/bin/bash
+    set -ex
+    # Generate mysql server-id from pod ordinal index.
+    [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+    ordinal=${BASH_REMATCH[1]}
+    echo "Waiting for mysqld to be ready (accepting connections)"
+    until mysql -h mysql-$ordinal.mysql -e "SELECT 1"; do sleep 1; done
+    if [[ $ordinal -eq 0 && ! -f /var/lib/mysql/configured ]]; then
+      bash /mnt/config-map/config.sh
+      date > /var/lib/mysql/configured
+    fi
+    # Mysql-0 need always be bootstraped if there are no others nodes
+    # TODO: 1) handle scale down to 0 situation - mysql-0 need to by bootstraped after scale up
+    # TODO: 2) handle mysql-0 crash - no need for bootstrap
+    replication_group_members=`mysql -h mysql-rw -sNe \
+     "SELECT count(*) FROM performance_schema.replication_group_members WHERE MEMBER_STATE='ONLINE'" || echo 0`
+    if [[ $ordinal -eq 0 && $replication_group_members -eq 0 ]]; then
+    # This handle TODO 1) and 2)
+      bash /mnt/config-map/bootstrap-repl.sh
+      date > /var/lib/mysql/bootstraped
     else
-      echo "Invalid statefulset index"
-      exit 1
+    # If data are copied by xtrabackup, set @@GLOBAL.GTID_PURGED and start replication
+       cd /var/lib/mysql
+       bash /mnt/config-map/repl.sh
     fi
-
-    nc -w 2 -v mysql.default.svc.cluster.local 3306 </dev/null;
-    if [[ $? -ne 1 ]]
-      then
-        echo "####### AUTOMATED CONFIG APPEND START ###############"  >> /mnt/data/my.cnf
-        echo "####### RUNNING CLUSTER DETECTED ####################"  >> /mnt/data/my.cnf
-        echo "####### HENCE: OMIT BOOTSTRAP CLUSTER ###############"  >> /mnt/data/my.cnf
-        echo "loose-group_replication_bootstrap_group = OFF" >> /mnt/data/my.cnf
-        echo "####### AUTOMATED CONFIG APPEND END   ###############"  >> /mnt/data/my.cnf
-      else
-        echo "####### AUTOMATED CONFIG APPEND START ###############"  >> /mnt/data/my.cnf
-        echo "####### UNABLE TO DETECT RUNNING CLUSTER ############"  >> /mnt/data/my.cnf
-        echo "####### HENCE: BOOTSTRAP CLUSTER ON BOOT ############"  >> /mnt/data/my.cnf
-        echo "loose-group_replication_bootstrap_group = ON" >> /mnt/data/my.cnf
-        echo "####### AUTOMATED CONFIG APPEND END   ###############"  >> /mnt/data/my.cnf
-
-        # Sleep few seconds only on first cluster boot to open 3306 port before second node starts up. otherwise second node will also bootstap cluster.
-        # TODO : remove sleep and add nc lookup to check if 3306 service is up and running.
-        echo "####### AUTOMATED CONFIG APPEND END   ###############"  >> /mnt/data/prep-work.sh
-        echo "####### UNABLE TO DETECT RUNNING CLUSTER ############"  >> /mnt/data/prep-work.sh
-        echo "####### HENCE: BOOTSTRAP CLUSTER ON BOOT ############"  >> /mnt/data/prep-work.sh
-        echo "####### WAIT FOR INITIAL CLUSTER TO BOOTUP ##########"  >> /mnt/data/prep-work.sh
-        echo "sleep 60"  >> /mnt/data/prep-work.sh
+    cd /var/lib/mysql
+    # Start a server to send backups when requested by peers.
+    exec ncat --listen --keep-open --send-only --max-conns=1 3307 -c \
+      "xtrabackup --backup --slave-info --stream=xbstream --host=127.0.0.1 --user=root"
+  config.sh: |
+    #!/bin/bash
+    set -ex
+    mysql -h 127.0.0.1 -e "SET SQL_LOG_BIN=OFF"
+    mysql -h 127.0.0.1 -e "CREATE USER rpl_user@'%' IDENTIFIED BY 'password'"
+    mysql -h 127.0.0.1 -e "GRANT REPLICATION SLAVE ON *.* TO rpl_user@'%'"
+    mysql -h 127.0.0.1 -e "FLUSH PRIVILEGES"
+    mysql -h 127.0.0.1 -e "CHANGE MASTER TO MASTER_USER='rpl_user', MASTER_PASSWORD='password' FOR CHANNEL 'group_replication_recovery'"
+    mysql -h 127.0.0.1 -e "INSTALL PLUGIN group_replication SONAME 'group_replication.so'"
+  repl.sh: |
+    #!/bin/bash
+    set -ex
+    cd /var/lib/mysql
+    if [[ -f xtrabackup_binlog_info ]]; then
+      [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+      ordinal=${BASH_REMATCH[1]}
+      [[ `cat xtrabackup_binlog_info | tr -d  '\n'` =~ ^(.*?)[[:space:]]+(.*?)[[:space:]]+(.*?)$ ]] || exit 1
+      mv xtrabackup_binlog_info xtrabackup_binlog_info.bck
+      mysql -h 127.0.0.1 -e "SET global event_scheduler=OFF"
+      mysql -h 127.0.0.1 -e "SET SQL_LOG_BIN=OFF"
+      mysql -h 127.0.0.1 -e "RESET MASTER"
+      mysql -h 127.0.0.1 -e "RESET SLAVE ALL"
+      mysql -h 127.0.0.1 -e "SET @@GLOBAL.GTID_PURGED='${BASH_REMATCH[3]}'"
+      mysql -h 127.0.0.1 -e "CHANGE MASTER TO MASTER_USER='rpl_user', MASTER_PASSWORD='password' FOR CHANNEL 'group_replication_recovery'"
+      mysql -h 127.0.0.1 -e "SET SQL_LOG_BIN=ON"
+      mysql -h 127.0.0.1 -e "START GROUP_REPLICATION"
+      mysql -h 127.0.0.1 -e "SET global event_scheduler=ON"
+    else
+      mysql -h 127.0.0.1 -e "START GROUP_REPLICATION"
     fi
-  my-0.cnf: |
-    # For advice on how to change settings please see
-    # http://dev.mysql.com/doc/refman/5.7/en/server-configuration-defaults.html
-
-    # https://www.digitalocean.com/community/tutorials/how-to-configure-mysql-group-replication-on-ubuntu-16-04#choosing-single-primary-or-multi-primary
-    # https://dba.stackexchange.com/questions/287649/mysql-multi-master-group-replication-on-kubernetes
-
-    [mysqld]
-
-    ########################## GROUP REPLICATION CONFIG START #########################################
-
-    # General replication settings
-    gtid_mode = ON
-    enforce_gtid_consistency = ON
-    master_info_repository = TABLE
-    relay_log_info_repository = TABLE
-    binlog_checksum = NONE
-    log_slave_updates = ON
-    log_bin = binlog
-    binlog_format = ROW
-    transaction_write_set_extraction = XXHASH64
-    ### group_replication_bootstrap only need when cluster boot for the first time. Hence, this is conditional.
-    ### Moved this config to append based on cluster state from init container.
-    #loose-group_replication_bootstrap_group = ON
-    loose-group_replication_start_on_boot = ON
-    #loose-group_replication_ssl_mode = REQUIRED
-    #loose-group_replication_recovery_use_ssl = 1
-
-    # Shared replication group configuration
-    loose-group_replication_group_name = "85cbd4a0-7338-46f1-b15e-28c1a26f465e"
-    loose-group_replication_ip_whitelist = "mysql-0.mysql.default.svc.cluster.local,mysql-1.mysql.default.svc.cluster.local"
-    loose-group_replication_group_seeds = "mysql-0.mysql.default.svc.cluster.local:33061,mysql-1.mysql.default.svc.cluster.local:33061"
-
-    # Single or Multi-primary mode? Uncomment these two lines
-    # for multi-primary mode, where any host can accept writes
-    loose-group_replication_single_primary_mode = OFF
-    loose-group_replication_enforce_update_everywhere_checks = ON
-
-    # Host specific replication configuration
-    server_id = 1
-    server-id = 1
-    bind-address = "mysql-0.mysql.default.svc.cluster.local"
-    report_host = "mysql-0.mysql.default.svc.cluster.local"
-    loose-group_replication_local_address = "mysql-0.mysql.default.svc.cluster.local:33061"
-
-    #########################  GROUP REPLICATION CONFIG END ###########################################
-    #
-    # Remove leading # and set to the amount of RAM for the most important data
-    # cache in MySQL. Start at 70% of total RAM for dedicated server, else 10%.
-    # innodb_buffer_pool_size = 128M
-    #
-    # Remove leading # to turn on a very important data integrity option: logging
-    # changes to the binary log between backups.
-    # log_bin
-    #
-    # Remove leading # to set options mainly useful for reporting servers.
-    # The server defaults are faster for transactions and fast SELECTs.
-    # Adjust sizes as needed, experiment to find the optimal values.
-    # join_buffer_size = 128M
-    # sort_buffer_size = 2M
-    # read_rnd_buffer_size = 2M
-    skip-host-cache
-    skip-name-resolve
-    datadir=/var/lib/mysql
-    socket=/var/lib/mysql/mysql.sock
-    secure-file-priv=/var/lib/mysql-files
-    user=mysql
-
-    # Disabling symbolic-links is recommended to prevent assorted security risks
-    symbolic-links=0
-
-    #log-error=/var/log/mysqld.log
-    relay_log=mysql-0-relay-bin
-    #group_replication_communication_debug_options="GCS_DEBUG_ALL"
-    pid-file=/var/run/mysqld/mysqld.pid
-  my-1.cnf: |
-    # For advice on how to change settings please see
-    # http://dev.mysql.com/doc/refman/5.7/en/server-configuration-defaults.html
-
-    # https://www.digitalocean.com/community/tutorials/how-to-configure-mysql-group-replication-on-ubuntu-16-04#choosing-single-primary-or-multi-primary
-    # https://dba.stackexchange.com/questions/287649/mysql-multi-master-group-replication-on-kubernetes
-
-    [mysqld]
-
-    ########################## GROUP REPLICATION CONFIG START #########################################
-
-    # General replication settings
-    gtid_mode = ON
-    enforce_gtid_consistency = ON
-    master_info_repository = TABLE
-    relay_log_info_repository = TABLE
-    binlog_checksum = NONE
-    log_slave_updates = ON
-    log_bin = binlog
-    binlog_format = ROW
-    transaction_write_set_extraction = XXHASH64
-    ### group_replication_bootstrap only need when cluster boot for the first time. Hence, this is conditional.
-    ### Moved this config to append based on cluster state from init container.    
-    #loose-group_replication_bootstrap_group = OFF
-    loose-group_replication_start_on_boot = ON
-    #loose-group_replication_ssl_mode = REQUIRED
-    #loose-group_replication_recovery_use_ssl = 1
-
-    # Shared replication group configuration
-    loose-group_replication_group_name = "85cbd4a0-7338-46f1-b15e-28c1a26f465e"
-    loose-group_replication_ip_whitelist = "mysql-0.mysql.default.svc.cluster.local,mysql-1.mysql.default.svc.cluster.local"
-    loose-group_replication_group_seeds = "mysql-0.mysql.default.svc.cluster.local:33061,mysql-1.mysql.default.svc.cluster.local:33061"
-
-    # Single or Multi-primary mode? Uncomment these two lines
-    # for multi-primary mode, where any host can accept writes
-    loose-group_replication_single_primary_mode = OFF
-    loose-group_replication_enforce_update_everywhere_checks = ON
-
-    # Host specific replication configuration
-    server_id = 2
-    server-id = 2
-    bind-address = "mysql-1.mysql.default.svc.cluster.local"
-    report_host = "mysql-1.mysql.default.svc.cluster.local"
-    loose-group_replication_local_address = "mysql-1.mysql.default.svc.cluster.local:33061"
-
-    #########################  GROUP REPLICATION CONFIG END ###########################################
-    #
-    # Remove leading # and set to the amount of RAM for the most important data
-    # cache in MySQL. Start at 70% of total RAM for dedicated server, else 10%.
-    # innodb_buffer_pool_size = 128M
-    #
-    # Remove leading # to turn on a very important data integrity option: logging
-    # changes to the binary log between backups.
-    # log_bin
-    #
-    # Remove leading # to set options mainly useful for reporting servers.
-    # The server defaults are faster for transactions and fast SELECTs.
-    # Adjust sizes as needed, experiment to find the optimal values.
-    # join_buffer_size = 128M
-    # sort_buffer_size = 2M
-    # read_rnd_buffer_size = 2M
-    skip-host-cache
-    skip-name-resolve
-    datadir=/var/lib/mysql
-    socket=/var/lib/mysql/mysql.sock
-    secure-file-priv=/var/lib/mysql-files
-    user=mysql
-
-    # Disabling symbolic-links is recommended to prevent assorted security risks
-    symbolic-links=0
-
-    #log-error=/var/log/mysqld.log
-    relay_log=mysql-1-relay-bin
-    #group_replication_communication_debug_options="GCS_DEBUG_ALL"    
-    pid-file=/var/run/mysqld/mysqld.pid
-  prep-work.sh: |
-    #!/bin/sh    
-    ###### IMPORTANT REMOVE BELOW LINES BEFORE PROD DEPLOYMENTS. ####
-    ##This is just to make sure init-mysql.sql are executed each time while test clustering stuff ###########    
-    #rm -rf var/lib/mysql/auto.cnf
-    #rm -rf /var/lib/mysql/
-  init-mysql-0.sql: |
-    ######################### GR CLUSTER CONFIGS START ####################
-    SET SQL_LOG_BIN=0;
-    #CREATE USER 'repl'@'%' IDENTIFIED BY 'repl' REQUIRE SSL;
-    CREATE USER 'repl'@'%' IDENTIFIED BY 'repl';
-    GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
-    FLUSH PRIVILEGES;
-    SET SQL_LOG_BIN=1;
-    CHANGE MASTER TO MASTER_USER='repl', MASTER_PASSWORD='repl' FOR CHANNEL 'group_replication_recovery';
-    INSTALL PLUGIN group_replication SONAME 'group_replication.so';
-
-    ###### FOLLOWING CONFIGS ARE NOT WORKING WHILE ON BOOT. NEED TO BOOTSTRAP FROM MY.CNF CONFIG ON BOOT.
-    ###### loose-group_replication_bootstrap_group = ON
-    ###### loose-group_replication_start_on_boot = ON
-    ###### KEEPING ABOVE CONFIGS ON MY.CNF ALSO NOT A SOLUTION FOR AD-HOC JOINS/LEAVES OF MEMBER NODES. NEED TO BRAINSTORM ANOTHER WAY!!
-    #SET GLOBAL group_replication_bootstrap_group=ON;
-    #START GROUP_REPLICATION;
-    #SET GLOBAL group_replication_bootstrap_group=OFF;
-
-    ######################### GR CLUSTER CONFIGS END ######################
-  init-mysql-1.sql: |
-    SET SQL_LOG_BIN=0;
-    #CREATE USER 'repl'@'%' IDENTIFIED BY 'repl' REQUIRE SSL;
-    CREATE USER 'repl'@'%' IDENTIFIED BY 'repl';
-    GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
-    FLUSH PRIVILEGES;
-    SET SQL_LOG_BIN=1;
-    CHANGE MASTER TO MASTER_USER='repl', MASTER_PASSWORD='repl' FOR CHANNEL 'group_replication_recovery';
-    INSTALL PLUGIN group_replication SONAME 'group_replication.so';
-
-    ###### FOLLOWING CONFIGS ARE NOT WORKING. NEED TO ENABLE ON BOOT WITH MY.CNF
-    ###### loose-group_replication_bootstrap_group = OFF
-    ###### loose-group_replication_start_on_boot = ON
-    ###### KEEPING ABOVE CONFIGS ON MY.CNF ALSO NOT A SOLUTION FOR AD-HOC JOINS/LEAVES OF MEMBER NODES. NEED TO BRAINSTORM ANOTHER WAY!!
-    #START GROUP_REPLICATION;
-  init-test-script.sql: |
-    ########################## TEST SCRIPT START ##########################
-    CREATE DATABASE IF NOT EXISTS myDB;
-    USE myDB;
-    CREATE TABLE IF NOT EXISTS test (ID int NOT NULL AUTO_INCREMENT, UTS varchar(255),increment varchar(255), PRIMARY KEY (ID)) ENGINE=InnoDB;;
-
-    CREATE USER IF NOT EXISTS 'myuser'@'localhost' IDENTIFIED BY 'mypass';
-    CREATE USER IF NOT EXISTS 'myuser'@'%' IDENTIFIED BY 'mypass';
-    GRANT ALL ON *.* TO 'myuser'@'localhost';
-    GRANT ALL ON *.* TO 'myuser'@'%';
-    flush privileges;
-    ########################## TEST SCRIPT START END ######################
+  bootstrap-repl.sh: |
+    #!/bin/bash
+    set -ex
+    mysql -h 127.0.0.1 -e "SET GLOBAL group_replication_bootstrap_group=ON"
+    mysql -h 127.0.0.1 -e "START GROUP_REPLICATION"
+    mysql -h 127.0.0.1 -e "SET GLOBAL group_replication_bootstrap_group=OFF"
+    mysql -h 127.0.0.1 -e "SET global event_scheduler=ON"
+    mysql -h 127.0.0.1 -e "SET SQL_LOG_BIN=ON"
+  data1.sql: |
+    CREATE DATABASE test;
+    USE test;
+    CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 TEXT NOT NULL);
+    INSERT INTO t1 VALUES (1, 'Luis');
+  data2.sql: |
+    INSERT INTO test.t1 VALUES (2, 'Krol');
+  data3.sql: |
+    INSERT INTO test.t1 VALUES (3, 'Psy');
+  readiness.sh: |
+    #!/bin/bash
+    set -ex
+    mysql -sN -h 127.0.0.1 -e "SELECT * FROM performance_schema.replication_group_members WHERE MEMBER_HOST LIKE '$HOSTNAME.mysql%' AND MEMBER_STATE='ONLINE'" | grep $HOSTNAME.mysql
