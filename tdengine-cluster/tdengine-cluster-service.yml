@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "taosd"
+  name: "tdengine"
   namespace: opencloud
   labels:
     app: "tdengine"

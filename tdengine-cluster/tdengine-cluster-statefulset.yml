@@ -6,7 +6,7 @@ metadata:
   labels:
     app: "tdengine"
 spec:
-  serviceName: "taosd"
+  serviceName: "tdengine"
   replicas: 3
   updateStrategy:
     type: RollingUpdate
@@ -19,9 +19,11 @@ spec:
       labels:
         app: "tdengine"
     spec:
+      imagePullSecrets:
+        - name: harbor-secret
       containers:
         - name: "tdengine"
-          image: "tdengine/tdengine:3.0.4.0"
+          image: "core.harbor.domain:31193/opencloud/tdengine:3.0.4.0"
           imagePullPolicy: "IfNotPresent"
           ports:
             - name: tcp6030
@@ -38,7 +40,7 @@ spec:
                   fieldPath: metadata.name
             # SERVICE_NAME and NAMESPACE for fqdn resolve
             - name: SERVICE_NAME
-              value: "taosd"
+              value: "tdengine"
             - name: STS_NAME
               value: "tdengine"
             - name: STS_NAMESPACE
@@ -64,23 +66,23 @@ spec:
             exec:
               command:
                 - taos-check
-            initialDelaySeconds: 5
+            initialDelaySeconds: 30
             timeoutSeconds: 5000
           livenessProbe:
             exec:
               command:
                 - taos-check
-            initialDelaySeconds: 15
-            periodSeconds: 20
+            initialDelaySeconds: 60
+            periodSeconds: 120
   volumeClaimTemplates:
     - metadata:
         name: taosdata
         annotations:
-          volume.beta.kubernetes.io/storage-class: opencloud-nfs-storage
+          volume.beta.kubernetes.io/storage-class: nfs
       spec:
         accessModes:
           - "ReadWriteMany"
-        storageClassName: ""
+        storageClassName: "nfs"
         resources:
           requests:
             storage: "10Gi"
