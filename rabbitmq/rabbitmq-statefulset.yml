@@ -59,7 +59,24 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - rabbitmq
+                topologyKey: kubernetes.io/hostname
       serviceAccountName: rabbitmq
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+        # Use Linux nodes in a mixed OS kubernetes cluster.
+        # Learn more at https://kubernetes.io/docs/reference/kubernetes-api/labels-annotations-taints/#kubernetes-io-os
+        kubernetes.io/os: linux
       imagePullSecrets:
         - name: harbor-secret
       containers:
@@ -78,40 +95,40 @@ spec:
               name: amqp
             - containerPort: 15672
               name: http
-          livenessProbe:
-            tcpSocket:
-              port: amqp
-            initialDelaySeconds: 5
-            timeoutSeconds: 5
-            periodSeconds: 10
-          readinessProbe:
-            tcpSocket:
-              port: amqp
-            initialDelaySeconds: 15
-            timeoutSeconds: 5
-            periodSeconds: 20
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - >
-                    if [ -z "$(grep rabbitmq /etc/resolv.conf)" ]; then
-                      sed "s/^search \([^ ]\+\)/search rabbitmq.\1 \1/" /etc/resolv.conf > /etc/resolv.conf.new;
-                      cat /etc/resolv.conf.new > /etc/resolv.conf;
-                      rm /etc/resolv.conf.new;
-                    fi;
-                    until rabbitmqctl node_health_check; do sleep 1; done;
-                    if [ -z "$(rabbitmqctl cluster_status | grep rabbitmq-0)" ]; then
-                      touch /gotit
-                      rabbitmqctl stop_app;
-                      rabbitmqctl reset;
-                      rabbitmqctl join_cluster rabbit@rabbitmq-0;
-                      rabbitmqctl start_app;
-                    else
-                      touch /notget
-                    fi;
+#          livenessProbe:
+#            exec:
+#              command: ["rabbitmq-diagnostics", "status"]
+#            initialDelaySeconds: 60
+#            periodSeconds: 60
+#            timeoutSeconds: 5
+#          readinessProbe:
+#            exec:
+#              command: ["rabbitmq-diagnostics", "status"]
+#            initialDelaySeconds: 20
+#            periodSeconds: 60
+#            timeoutSeconds: 5
+#          lifecycle:
+#            postStart:
+#              exec:
+#                command:
+#                  - /bin/sh
+#                  - -c
+#                  - >
+#                    if [ -z "$(grep rabbitmq /etc/resolv.conf)" ]; then
+#                      sed "s/^search \([^ ]\+\)/search rabbitmq.\1 \1/" /etc/resolv.conf > /etc/resolv.conf.new;
+#                      cat /etc/resolv.conf.new > /etc/resolv.conf;
+#                      rm /etc/resolv.conf.new;
+#                    fi;
+#                    until rabbitmqctl node_health_check; do sleep 1; done;
+#                    if [ -z "$(rabbitmqctl cluster_status | grep rabbitmq-0)" ]; then
+#                      touch /gotit
+#                      rabbitmqctl stop_app;
+#                      rabbitmqctl reset;
+#                      rabbitmqctl join_cluster rabbit@rabbitmq-0;
+#                      rabbitmqctl start_app;
+#                    else
+#                      touch /notget
+#                    fi;
           env:
             - name: RABBITMQ_ERLANG_COOKIE
               value: UeCinu9N8FmL6Z/z8OOqGDU1MZT9VyRFHBDJJUdQrK4=
@@ -119,12 +136,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: K8S_SERVICE_NAME
               value: "rabbitmq"
             - name: RABBITMQ_USE_LONGNAME
               value: "true"
             - name: RABBITMQ_NODENAME
-              value: "rabbit@$(MY_POD_NAME)"
+              value: "rabbit@$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
             - name: RABBITMQ_DEFAULT_USER
               value: admin                        # 连接rabbit的账号
             - name: RABBITMQ_DEFAULT_PASS
@@ -144,10 +165,26 @@ spec:
             - name: K8S_ADDRESS_TYPE
               value: "hostname"
             - name: K8S_HOSTNAME_SUFFIX
-              value: ".$(K8S_SERVICE_NAME)"
+              value: ".$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
           volumeMounts:
+            - name: config-volume
+              mountPath: /etc/rabbitmq
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: config-volume
+          configMap:
+            name: rabbitmq-config
+            items:
+              - key: rabbitmq.conf
+                path: rabbitmq.conf
+              - key: enabled_plugins
+                path: enabled_plugins
   selector:
     matchLabels:
       app: rabbitmq
