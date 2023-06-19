@@ -1,0 +1,165 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-management
+  namespace: opencloud
+  labels:
+    app: rabbitmq
+spec:
+  ports:
+    - port: 15672
+      name: http
+      protocol: TCP
+      nodePort: 31672
+    - port: 5672
+      name: amqp
+      protocol: TCP
+      nodePort: 30672
+    - port: 25672
+      name: clustering
+      protocol: TCP
+  selector:
+    app: rabbitmq
+  type: NodePort
+
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: opencloud
+  labels:
+    app: rabbitmq
+spec:
+  clusterIP: None
+  ports:
+    - port: 5672
+      name: amqp
+    - port: 15672
+      name: http
+  selector:
+    app: rabbitmq
+
+
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: opencloud
+spec:
+  serviceName: rabbitmq
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      serviceAccountName: rabbitmq
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: rabbitmq
+          image: core.harbor.domain:31193/opencloud/rabbitmq:3.9.11
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: http
+          livenessProbe:
+            tcpSocket:
+              port: amqp
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: amqp
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+            periodSeconds: 20
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - >
+                    if [ -z "$(grep rabbitmq /etc/resolv.conf)" ]; then
+                      sed "s/^search \([^ ]\+\)/search rabbitmq.\1 \1/" /etc/resolv.conf > /etc/resolv.conf.new;
+                      cat /etc/resolv.conf.new > /etc/resolv.conf;
+                      rm /etc/resolv.conf.new;
+                    fi;
+                    until rabbitmqctl node_health_check; do sleep 1; done;
+                    if [ -z "$(rabbitmqctl cluster_status | grep rabbitmq-0)" ]; then
+                      touch /gotit
+                      rabbitmqctl stop_app;
+                      rabbitmqctl reset;
+                      rabbitmqctl join_cluster rabbit@rabbitmq-0;
+                      rabbitmqctl start_app;
+                    else
+                      touch /notget
+                    fi;
+          env:
+            - name: RABBITMQ_ERLANG_COOKIE
+              value: UeCinu9N8FmL6Z/z8OOqGDU1MZT9VyRFHBDJJUdQrK4=
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_SERVICE_NAME
+              value: "rabbitmq"
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            - name: RABBITMQ_NODENAME
+              value: "rabbit@$(MY_POD_NAME)"
+            - name: RABBITMQ_DEFAULT_USER
+              value: admin                        # 连接rabbit的账号
+            - name: RABBITMQ_DEFAULT_PASS
+              value: xQFumTr1iB0JPyz                       #连接rabbit的密码
+            - name: RABBITMQ_DEFAULT_VHOST      # vhost
+              value: vhost
+            - name: RABBITMQ_NODE_TYPE        # 持久化到磁盘
+              value: disc
+            - name: AUTOCLUSTER_TYPE
+              value: "k8s"
+            - name: AUTOCLUSTER_DELAY
+              value: "2"
+            - name: AUTOCLUSTER_CLEANUP
+              value: "true"
+            - name: CLEANUP_WARN_ONLY
+              value: "false"
+            - name: K8S_ADDRESS_TYPE
+              value: "hostname"
+            - name: K8S_HOSTNAME_SUFFIX
+              value: ".$(K8S_SERVICE_NAME)"
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+  selector:
+    matchLabels:
+      app: rabbitmq
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+        annotations:
+          volume.beta.kubernetes.io/storage-class: nfs
+      spec:
+        accessModes:
+          - "ReadWriteMany"
+        storageClassName: "nfs"
+        resources:
+          requests:
+            storage: "10Gi"
