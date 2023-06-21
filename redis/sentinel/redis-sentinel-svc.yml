@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-svc
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  type: NodePort
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      nodePort: 30380
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-sentinel-svc
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis-sentinel
+  clusterIP: None
+  ports:
+    - name: redis
+      port: 26379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-sentinel-nodeport
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis-sentinel
+  type: NodePort
+  ports:
+    - name: redissentinel
+      port: 26379
+      targetPort: 26379
+      nodePort: 30379

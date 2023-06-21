@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-sentinel
+  namespace: redis
+  labels:
+    app: redis-sentinel
+spec:
+  selector:
+    matchLabels:
+      app: redis-sentinel
+  #与redis-service.yaml中的保持一致
+  serviceName: redis-sentinel-svc
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: redis-sentinel
+    spec:
+      initContainers:
+        - name: init-redis-sentinel
+          image: redis:6.2.5
+          command:
+            - bash
+            - "-c"
+            - |
+              set -ex
+              cp /mnt/config-map/sentinel.conf /conf/redis-sentinel.conf
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+            - name: config-map
+              mountPath: /mnt/config-map
+      containers:
+        - name: redis-sentinel
+          image: redis:6.2.5
+          command: ["redis-sentinel"]
+          args:
+            - "/conf/redis-sentinel.conf"
+          ports:
+            - name: redis-sentinel
+              containerPort: 26379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: conf
+              mountPath: /conf
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+      volumes:
+        - name: config-map
+          #这个卷挂载到configMap上
+          configMap:
+            name: redis
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        #与nfs-StorageClass.yaml metadata.name保持一致
+        storageClassName: nfs
+        resources:
+          requests:
+            storage: 100Mi
+    - metadata:
+        name: conf
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        #与nfs-StorageClass.yaml metadata.name保持一致
+        storageClassName: nfs
+        resources:
+          requests:
+            storage: 10Mi

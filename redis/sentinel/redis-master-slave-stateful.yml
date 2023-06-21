@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  #与redis-service.yaml中的保持一致
+  serviceName: redis-svc
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      initContainers:
+        - name: init-redis
+          image: redis:6.2.5
+          command:
+            - bash
+            - "-c"
+            - |
+              set -ex
+              #从pod的hostname中通过正则获取序号，如果没有截取到就退出程序
+              ordinal=`hostname | awk -F"-" '{print $2}'`
+              if [ ${ordinal} -eq 0 ]; then
+                # 如果Pod的序号为0，说明它是Master节点
+                cp /mnt/config-map/master.conf /conf/redis.conf
+              else
+                # 否则，拷贝ConfigMap里的Slave的配置文件
+                cp /mnt/config-map/slave.conf /conf/redis.conf
+              fi
+              sed -i "s/redisPassword/${REDIS_PASSWORD}/g"  /conf/redis.conf
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redisPassword
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+            - name: config-map
+              mountPath: /mnt/config-map
+      containers:
+        - name: redis
+          image: redis:6.2.5
+          command: ["redis-server"]
+          args:
+            - "/conf/redis.conf"
+          ports:
+            - name: redis
+              containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: conf
+              mountPath: /conf
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+      volumes:
+        - name: config-map
+          #这个卷挂载到configMap上
+          configMap:
+            name: redis
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        #与nfs-StorageClass.yaml metadata.name保持一致
+        storageClassName: nfs
+        resources:
+          requests:
+            storage: 5Gi
+    - metadata:
+        name: conf
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        #与nfs-StorageClass.yaml metadata.name保持一致
+        storageClassName: nfs
+        resources:
+          requests:
+            storage: 100Mi
