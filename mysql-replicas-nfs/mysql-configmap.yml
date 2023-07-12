@@ -7,10 +7,125 @@ metadata:
     app: mysql
 data:
   master.cnf: |
-    # Apply this config only on the master.
+    [mysql]
+    # 设置mysql客户端默认字符集
+    default-character-set = utf8
     [mysqld]
-    log-bin
+    #设置3306端口
+    port = 3306
+      
+    # 服务端使用的字符集默认为8比特编码的latin1字符集
+    character-set-server = utf8
+    collation-server = utf8_general_ci
+    
+    # 禁用DNS解析，请注意在增加该配置参数后，mysql的授权表中的host字段就不能够使用域名而只能够使用ip地址了，因为这是禁止了域名解析的结果
+    # 可能导致mysql ERROR 1130问题，初始化后localhost无法连接服务器
+    # skip-name-resolve
+    # 跳过数据库权限验证
+    # skip-grant-tables
+    
+    # 创建新表时将使用的默认存储引擎
+    default-storage-engine = INNODB
+    # 内存的二分之一，理论上越大越好
+    innodb_data_file_path = ibdata1:10M:autoextend
+    # InnoDB是否需要将所有表的数据和索引存放在共享表空间里
+    innodb_file_per_table = 1
+    innodb_doublewrite = 0
+    innodb_max_dirty_pages_pct = 80
+    innodb_flush_log_at_trx_commit = 2
+    innodb_log_buffer_size = 8M
+    innodb_log_files_in_group = 2
+    # redo日志被用于确保写操作快速而可靠并且在崩溃时恢复
+    innodb_log_file_size = 256M
+    innodb_thread_concurrency = 0
+    # linux下启用此配置，分别为fdatasync（默认），O_DSYNC和O_DIRECT
+    # innodb_flush_method = O_DIRECT
+    innodb_write_io_threads = 8
+    innodb_read_io_threads = 8
+    innodb_io_capacity = 600
+    innodb_use_native_aio
+      
+      
+    # 超时时间设置，interactive_timeout针对交互式连接,wait_timeout针对非交互式连接
+    wait_timeout = 2147483
+    interactive_timeout = 2147483
+    sql_mode = STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+    
+    # 连接数相关配置
+    back_log    = 256
+    
+    # skip-external-locking,external-locking用于多进程条件下为MyISAM数据表进行锁定
+    external-locking = FALSE
+    
+    # 尺寸相关参数
+    tmp_table_size = 246M
+    max_heap_table_size = 246M
+    key_buffer_size = 400M
+    max_allowed_packet = 32M
+    table_open_cache = 512
+    sort_buffer_size = 8M
+    join_buffer_size = 1M
+    net_buffer_length = 1M
+    read_buffer_size = 4M
+    read_rnd_buffer_size = 16M
+    bulk_insert_buffer_size = 64M
+    table_open_cache = 4096
+    
+    # 事件调度器，默认关闭
+    event_scheduler = OFF
+    
+    # 请求缓存，如果每次数据都不一样，设置意义不大
+    query_cache_size = 0
+    query_cache_type = 0
+    
+    
+    # 日志设置
+    # binlog日志，主从库设置需要
+    log-bin = mysql-bin
+    # master
+    binlog-format=ROW
+    #忽略同步的表
+    binlog_ignore_db = information_schema
+    binlog_ignore_db = performation_schema
+    binlog_ignore_db = sys
+    auto-increment-increment = 1
+    auto-increment-offset = 1
+    log-bin-trust-function-creators = 1
+    #binlog_format = mixed
+    # binlog过期清理
+    expire_logs_days = 7
+    relay_log_purge = 0
+    
+    # mysql慢日志开启
+    slow_query_log = ON
+    slow_query_log_file = /logs/mysql-slow.log
+    long_query_time = 1
+    # 将所有到达MySQL Server的SQL语句记录下来，一般不会开启，排查问题时可短时间开启
+    #general_log = ON
+    #general_log_file = /data/mysql/log/general.log
+    
+    # 从尾部添加的，需动态修改的参数
+    
+    # 允许最大连接数
+    max_connections = 2000
+    innodb_buffer_pool_size = 1G
+    slave-skip-errors=all
   slave.cnf: |
-    # Apply this config only on slaves.
+    [mysql]
+    # 设置mysql客户端默认字符集
+    default-character-set = utf8
     [mysqld]
-    super-read-only
+    #设置3306端口
+    port = 3306
+    
+    # 服务端使用的字符集默认为8比特编码的latin1字符集
+    character-set-server = utf8
+    collation-server = utf8_general_ci
+    
+    log-bin=mysql-bin
+    binlog-format=ROW
+    #忽略同步的表
+    binlog_ignore_db=information_schema
+    binlog_ignore_db=performation_schema
+    binlog_ignore_db=sys
+    slave-skip-errors=all
