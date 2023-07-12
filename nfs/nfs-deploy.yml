@@ -30,9 +30,9 @@ spec:
             - name: NFS_SERVER
               value: 192.168.2.2  # 替换为你的NFS服务器
             - name: NFS_PATH
-              value: /opt/k8s/shared  # 替换为你的NFS文件夹
+              value: /opt/nfs/opencloud  # 替换为你的NFS文件夹
       volumes:
         - name: nfs-client-root
           nfs:
             server: 192.168.2.2  # 替换为你的NFS服务器
-            path: /opt/k8s/shared  # 替换为你的NFS文件夹
+            path: /opt/nfs/opencloud  # 替换为你的NFS文件夹
