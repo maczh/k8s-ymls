@@ -53,10 +53,10 @@ sed -e 's|^mirrorlist=|#mirrorlist=|g' \
          -e 's|^#baseurl=http://mirror.centos.org/$contentdir|baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos|g' \
          -i.bak \
          /etc/yum.repos.d/CentOS-*.repo
-yum update -y && yum -y install wget psmisc vim net-tools nfs-utils telnet yum-utils device-mapper-persistent-data lvm2 git network-scripts tar curl         
+yum update -y && yum -y install wget psmisc vim net-tools nfs-utils telnet yum-utils device-mapper-persistent-data lvm2 git network-scripts tar curl chrony         
 ```
 
-### 2.6 修改网络配置
+### 2.6 修改网络配置(不需要)
 
 ```bash
 cat > /etc/NetworkManager/conf.d/calico.conf << EOF
@@ -270,7 +270,7 @@ localAPIEndpoint:
 nodeRegistration:
   criSocket: unix:///var/run/crio/crio.sock			#使用crio
   imagePullPolicy: IfNotPresent
-  name: node
+  name: k8s-master
   taints: null
 ---
 apiServer:
@@ -322,7 +322,7 @@ echo "export KUBECONFIG=/etc/kubernetes/admin.conf" >> .bash_profile
 source .bash_profile
 ```
 
-#### (7)编辑kube-flannel.yml文件
+#### (7)编辑kube-flannel.yml文件(不需要，直接使用cni)
 
 ```yaml
 ---
