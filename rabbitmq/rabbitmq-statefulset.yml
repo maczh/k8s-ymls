@@ -78,10 +78,10 @@ spec:
         # Learn more at https://kubernetes.io/docs/reference/kubernetes-api/labels-annotations-taints/#kubernetes-io-os
         kubernetes.io/os: linux
       imagePullSecrets:
-        - name: harbor-secret
+        - name: dev.gamecdn
       containers:
         - name: rabbitmq
-          image: core.harbor.domain:31193/opencloud/rabbitmq:3.9.11
+          image: dev.gamecdn.com:5000/rabbitmq:3.9.11
           imagePullPolicy: IfNotPresent
           resources:
             requests:

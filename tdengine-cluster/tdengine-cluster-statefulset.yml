@@ -20,10 +20,10 @@ spec:
         app: "tdengine"
     spec:
       imagePullSecrets:
-        - name: harbor-secret
+        - name: dev.gamecdn
       containers:
         - name: "tdengine"
-          image: "core.harbor.domain:31193/opencloud/tdengine:3.0.4.0"
+          image: "dev.gamecdn.com:5000/tdengine:3.0.4.0"
           imagePullPolicy: "IfNotPresent"
           ports:
             - name: tcp6030

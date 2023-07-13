@@ -30,7 +30,7 @@ spec:
   selector:
     app: zk
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: zk-pdb
@@ -76,10 +76,12 @@ spec:
       #   operator: "Equal"
       #   value: "kafka"
       #   effect: "PreferNoSchedule"
+      imagePullSecrets:
+        - name: dev.gamecdn
       containers:
         - name: kubernetes-zookeeper
           imagePullPolicy: IfNotPresent
-          image: core.harbor.domain:31193/opencloud/kubernetes-zookeeper:1.0-3.4.10
+          image: dev.gamecdn.com:5000/zookeeper:3.4.10
           resources:
             requests:
               memory: "1G"

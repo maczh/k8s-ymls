@@ -13,7 +13,7 @@ spec:
   selector:
     app: kafka
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: kafka-pdb
@@ -40,10 +40,12 @@ spec:
       labels:
         app: kafka
     spec:
+      imagePullSecrets:
+        - name: dev.gamecdn
       containers:
         - name: k8s-kafka
           imagePullPolicy: IfNotPresent
-          image: core.harbor.domain:31193/opencloud/kafka:2.2.0
+          image: dev.gamecdn.com:5000/kafka:3.5.0
           resources:
             requests:
               memory: "600Mi"
@@ -54,7 +56,7 @@ spec:
           command:
             - sh
             - -c
-            - "exec kafka-server-start.sh /opt/kafka/config/server.properties --override broker.id=${HOSTNAME##*-} \
+            - "exec /opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/server.properties --override broker.id=${HOSTNAME##*-} \
             --override listeners=PLAINTEXT://:9092 \
             --override zookeeper.connect=zk-0.zk-hs.opencloud.svc.cluster.local:2181,zk-1.zk-hs.opencloud.svc.cluster.local:2181,zk-2.zk-hs.opencloud.svc.cluster.local:2181 \
             --override log.dir=/var/lib/kafka \
@@ -116,7 +118,7 @@ spec:
             --override fetch.purgatory.purge.interval.requests=1000 \
             --override group.max.session.timeout.ms=300000 \
             --override group.min.session.timeout.ms=6000 \
-            --override inter.broker.protocol.version=2.2.0 \
+            --override inter.broker.protocol.version=3.5.0 \
             --override log.cleaner.backoff.ms=15000 \
             --override log.cleaner.dedupe.buffer.size=134217728 \
             --override log.cleaner.delete.retention.ms=86400000 \
@@ -165,4 +167,4 @@ spec:
         storageClassName: nfs
         resources:
           requests:
-            storage:  500Mi
+            storage:  2Gi

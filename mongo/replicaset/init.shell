@@ -1,10 +1,10 @@
 use admin;
 rs.initiate(
     {
-        _id: "trunkingReplSet",
+        _id: "ocReplSet",
         members: [
             { _id : 0, host : "mongodb-rs-0.mongodb-rs.opencloud.svc.cluster.local:27017",priority: 50 },
-            { _id : 1, host : "mongodb-rs-1.mongodb-rs.opencloud.svc.cluster.local:27017" ,priority: 60},
+            { _id : 1, host : "mongodb-rs-1.mongodb-rs.opencloud.svc.cluster.local:27017" ,priority: 30},
             { _id : 2, host : "mongodb-rs-2.mongodb-rs.opencloud.svc.cluster.local:27017",arbiterOnly: true }
         ]
     }

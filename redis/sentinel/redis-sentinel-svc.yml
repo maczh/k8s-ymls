@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis-svc
-  namespace: redis
+  namespace: opencloud
   labels:
     app: redis
 spec:
@@ -19,7 +19,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis-sentinel-svc
-  namespace: redis
+  namespace: opencloud
   labels:
     app: redis
 spec:
@@ -34,7 +34,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis-sentinel-nodeport
-  namespace: redis
+  namespace: opencloud
   labels:
     app: redis
 spec:

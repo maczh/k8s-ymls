@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: redis-sentinel
-  namespace: redis
+  namespace: opencloud
   labels:
     app: redis-sentinel
 spec:
@@ -17,9 +17,11 @@ spec:
       labels:
         app: redis-sentinel
     spec:
+      imagePullSecrets:
+        - name: dev.gamecdn
       initContainers:
         - name: init-redis-sentinel
-          image: redis:6.2.5
+          image: dev.gamecdn.com:5000/redis:7.0.7
           command:
             - bash
             - "-c"
@@ -33,7 +35,7 @@ spec:
               mountPath: /mnt/config-map
       containers:
         - name: redis-sentinel
-          image: redis:6.2.5
+          image: dev.gamecdn.com:5000/redis:7.0.7
           command: ["redis-sentinel"]
           args:
             - "/conf/redis-sentinel.conf"

@@ -33,7 +33,7 @@ data:
       authorization: enabled
     replication:
       oplogSizeMB: 5120
-      replSetName: trunkingReplSet
+      replSetName: ocReplSet
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -52,10 +52,10 @@ spec:
         app: mongodb-rs
     spec:
       imagePullSecrets:
-        - name: dev.gamecdn.com.secret
+        - name: dev.gamecdn
       containers:
         - name: mongo
-          image: core.harbor.domain:31193/opencloud/mongo:4.4.14
+          image: dev.gamecdn.com:5000/mongo:4.4.14
           ports:
             - containerPort: 27017
               name: mongo-pod-port

@@ -251,7 +251,7 @@ kubeadm config images pull --image-repository registry.aliyuncs.com/google_conta
 kubeadm config print init-defaults > kubeadm-config.yaml
 ```
 
-#### (2)修改初始化文件kubeadm-config.yaml,注释的地方需要修改
+#### (2)修改初始化文件kubeadm-config.yml,注释的地方需要修改
 
 ```yaml
 apiVersion: kubeadm.k8s.io/v1beta3
@@ -297,16 +297,16 @@ scheduler: {}
 #### (3)初始化集群
 
 ```bash
-kubeadm init --config kubeadm-config.yaml --image-repository registry.aliyuncs.com/google_containers
+kubeadm init --config kubeadm-config.yml
 ```
 
 #### (4)复制/etc/kubernetes/admin.conf到各node节点
 
 ```bash
-scp  /etc/kubernetes/admin.conf k8s-node1:/etc/kubernetes/admin.conf
-scp  /etc/kubernetes/admin.conf k8s-node2:/etc/kubernetes/admin.conf
-scp  /etc/kubernetes/admin.conf k8s-node3:/etc/kubernetes/admin.conf
-scp  /etc/kubernetes/admin.conf k8s-node4:/etc/kubernetes/admin.conf
+scp -P 51293 /etc/kubernetes/admin.conf k8s-node1:/etc/kubernetes/admin.conf
+scp -P 51293 /etc/kubernetes/admin.conf k8s-node2:/etc/kubernetes/admin.conf
+scp -P 51293 /etc/kubernetes/admin.conf k8s-node3:/etc/kubernetes/admin.conf
+scp -P 51293 /etc/kubernetes/admin.conf k8s-node4:/etc/kubernetes/admin.conf
 ```
 
 #### (5)各节点加入(在node节点上执行)
@@ -322,7 +322,7 @@ echo "export KUBECONFIG=/etc/kubernetes/admin.conf" >> .bash_profile
 source .bash_profile
 ```
 
-#### (7)编辑kube-flannel.yml文件(不需要，直接使用cni)
+#### (7)编辑kube-flannel.yml文件(可选)
 
 ```yaml
 ---
@@ -545,9 +545,15 @@ spec:
           type: FileOrCreate
 ```
 
-#### (8)安装flannel
+#### (8)安装flannel(可选)
 
 ```bash
 kubectl apply -f kube-flannel.yml
 ```
 
+#### (9)安装calico网络插件cni(与flannel二选一，实测推荐)
+
+```bash
+wget http://manongbiji.oss-cn-beijing.aliyuncs.com/ittailkshow/k8s/download/calico.yaml
+kubectl apply -f calico.yaml
+```

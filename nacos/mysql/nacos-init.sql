@@ -1,6 +1,6 @@
 create database nacos default character set utf8;
-create user 'nacos'@'10.11.%.%' identified by 'pyYhdWPZrJKGTAs';
-grant all PRIVILEGES on nacos.* to 'nacos'@'10.11.%.%';
+create user 'nacos'@'10.%.%.%' identified by 'pyYhdWPZrJKGTAs';
+grant all PRIVILEGES on nacos.* to 'nacos'@'10.%.%.%';
 flush privileges;
 UPDATE mysql.user set authentication_string = PASSWORD('DKu0zGmNYRKygKl') WHERE User = 'root' and Host='localhost';
 
